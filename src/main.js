@@ -1,7 +1,7 @@
 /**
  * main.js
  * BrainDonald's — entry point.
- * Sets up Three.js renderer, WebXR, scene, and the game loop.
+ * Sets up Three.js renderer, WebXR, scene, UI overlays, and the game loop.
  */
 
 import * as THREE from 'three';
@@ -16,6 +16,9 @@ import { DeliveryStation } from './environment/DeliveryStation.js';
 
 import { OrderSystem }    from './gameplay/OrderSystem.js';
 import { gameState, STATE } from './core/GameState.js';
+
+import { StartScreen }    from './ui/StartScreen.js';
+import { ObjectiveHUD }   from './ui/ObjectiveHUD.js';
 
 // ── Renderer ────────────────────────────────────────────────────────────────
 
@@ -71,8 +74,19 @@ const storageAisle = new StorageAisle(scene, input);
 
 // ── Gameplay ─────────────────────────────────────────────────────────────────
 
-const npcPosition = new THREE.Vector3(-1.5, 0, -1.2); // behind / beside counter
+const npcPosition = new THREE.Vector3(-2.2, 0, -0.3); // Ordering side counter area (left of counter)
 const orderSystem = new OrderSystem(scene, npcPosition);
+
+// ── UI Overlays (StartScreen + ObjectiveHUD) ──────────────────────────────────
+
+const objectiveHUD = new ObjectiveHUD(scene, camera);
+
+let shiftStarted = false;
+const startScreen = new StartScreen(scene, input, () => {
+  shiftStarted = true;
+  orderSystem.start();
+  objectiveHUD.updateState();
+});
 
 // ── Audio preload (after first interaction) ───────────────────────────────────
 
@@ -86,20 +100,6 @@ function ensureAudio() {
 window.addEventListener('click',      ensureAudio, { once: true });
 window.addEventListener('touchstart', ensureAudio, { once: true });
 renderer.xr.addEventListener('sessionstart', ensureAudio);
-
-// ── Game start ────────────────────────────────────────────────────────────────
-
-// Kick off the first order when a VR session starts or on desktop click-to-play
-renderer.xr.addEventListener('sessionstart', () => orderSystem.start());
-
-// Desktop: start on first click (after audio unlock)
-let desktopStarted = false;
-canvas.addEventListener('click', () => {
-  if (!renderer.xr.isPresenting && !desktopStarted) {
-    desktopStarted = true;
-    orderSystem.start();
-  }
-});
 
 // ── Render loop ───────────────────────────────────────────────────────────────
 
@@ -119,6 +119,8 @@ renderer.setAnimationLoop((timestamp, frame) => {
   input.update();
   orderSystem.update(activeCamera, dt);
   storageAisle.update(activeCamera, dt);
+  startScreen.update(activeCamera);
+  objectiveHUD.update(activeCamera);
 
   // Update carried item if any
   if (gameState.carriedItem && gameState._carriedItemRef) {

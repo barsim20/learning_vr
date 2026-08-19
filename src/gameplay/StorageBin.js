@@ -68,14 +68,50 @@ export class StorageBin {
     this._door.position.set(0, 0, 0.24);
     this.group.add(this._door);
 
-    // Lock icon (small gold cube on door face)
-    const lock = new THREE.Mesh(
-      new THREE.BoxGeometry(0.06, 0.08, 0.03),
-      new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.5 }),
+    // Lock icon (prominent gold padlock on door face)
+    const lockGroup = new THREE.Group();
+    lockGroup.position.set(0, -0.05, 0.035);
+
+    // Padlock body
+    const lockBody = new THREE.Mesh(
+      new THREE.BoxGeometry(0.12, 0.1, 0.04),
+      new THREE.MeshStandardMaterial({ color: 0xffd166, metalness: 0.8, roughness: 0.3 }),
     );
-    lock.position.set(0, 0, 0.035);
-    this._door.add(lock);
-    this._lockMesh = lock;
+    lockGroup.add(lockBody);
+
+    // Padlock shackle (u-shape top)
+    const shackle = new THREE.Mesh(
+      new THREE.TorusGeometry(0.04, 0.012, 8, 16, Math.PI),
+      new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.9, roughness: 0.2 }),
+    );
+    shackle.position.set(0, 0.05, 0);
+    shackle.rotation.x = Math.PI;
+    lockGroup.add(shackle);
+
+    // Keyhole
+    const keyhole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.012, 0.012, 0.045, 8),
+      new THREE.MeshStandardMaterial({ color: 0x111111 }),
+    );
+    keyhole.rotation.x = Math.PI / 2;
+    keyhole.position.set(0, -0.01, 0.005);
+    lockGroup.add(keyhole);
+
+    this._door.add(lockGroup);
+    this._lockMesh = lockGroup;
+
+    // Glowing Task Target Beacon (Arrow/Diamond floating above target bin)
+    this._taskBeacon = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.08, 0),
+      new THREE.MeshStandardMaterial({
+        color: 0xffd166,
+        emissive: 0xffd166,
+        emissiveIntensity: 1.0,
+      }),
+    );
+    this._taskBeacon.position.set(0, 0.55, 0.26);
+    this._taskBeacon.visible = false;
+    this.group.add(this._taskBeacon);
 
     // Door is the click target
     this._door.userData.onSelect = () => this._onDoorClick();
@@ -185,6 +221,16 @@ export class StorageBin {
   update(camera, dt) {
     if (this._item && !this._item.carried) {
       this._item.updateIdle(dt);
+    }
+
+    // Task beacon guidance: show floating glowing marker if this bin is the active task
+    const isTarget = gameState.activeOrder && gameState.activeOrder.id === this.itemData.id && !this.isOpen;
+    if (isTarget && gameState.isIn(STATE.ORDER)) {
+      this._taskBeacon.visible = true;
+      this._taskBeacon.rotation.y += dt * 3;
+      this._taskBeacon.position.y = 0.55 + Math.sin(performance.now() * 0.005) * 0.05;
+    } else {
+      this._taskBeacon.visible = false;
     }
   }
 

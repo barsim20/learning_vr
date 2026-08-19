@@ -19,10 +19,11 @@ export class CustomerNPC {
 
     this.group = new THREE.Group();
     this.group.position.copy(position);
+    this.group.rotation.y = Math.PI / 4; // face toward counter / player area
     scene.add(this.group);
 
     this._buildCharacter();
-    this._bubble = new SpeechBubble(this.group, 1.0);
+    this._bubble = new SpeechBubble(this.group, 1.7);
     this.hide();
   }
 
