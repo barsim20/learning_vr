@@ -24,7 +24,7 @@ export class CustomerNPC {
     scene.add(this.group);
 
     this._loadCharacter();
-    this._bubble = new SpeechBubble(this.group, 1.7);
+    this._bubble = new SpeechBubble(this.group, 2.1);
     this.hide();
   }
 
@@ -40,13 +40,13 @@ export class CustomerNPC {
         }
       });
 
-      // Auto-scale character to reasonable human height (~1.4m)
+      // Auto-scale character to realistic VR human height (~1.95m)
       const box = new THREE.Box3().setFromObject(this.model);
       const size = new THREE.Vector3();
       box.getSize(size);
 
       if (size.y > 0) {
-        const targetHeight = 1.4;
+        const targetHeight = 1.95;
         const scaleFactor = targetHeight / size.y;
         this.model.scale.setScalar(scaleFactor);
 
