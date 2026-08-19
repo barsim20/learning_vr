@@ -5,6 +5,7 @@
  */
 
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { SpeechBubble } from '../ui/SpeechBubble.js';
 import { voiceManager } from '../core/VoiceManager.js';
 
@@ -22,50 +23,42 @@ export class CustomerNPC {
     this.group.rotation.y = Math.PI; // Face towards Store Manager behind counter
     scene.add(this.group);
 
-    this._buildCharacter();
+    this._loadCharacter();
     this._bubble = new SpeechBubble(this.group, 1.7);
     this.hide();
   }
 
-  _buildCharacter() {
-    // Body (rounded box via cylinder)
-    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x9b5de5, roughness: 0.7 }); // purple
+  _loadCharacter() {
+    const loader = new GLTFLoader();
+    loader.load('/3d_assets/customer.glb', (gltf) => {
+      this.model = gltf.scene;
 
-    const body = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.18, 0.22, 0.55, 16),
-      bodyMat,
-    );
-    body.position.y = 0.55;
-    this.group.add(body);
+      this.model.traverse((child) => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+        }
+      });
 
-    // Head
-    const head = new THREE.Mesh(
-      new THREE.SphereGeometry(0.22, 16, 16),
-      new THREE.MeshStandardMaterial({ color: 0xffe5b4, roughness: 0.6 }), // skin-tone
-    );
-    head.position.y = 1.1;
-    this.group.add(head);
+      // Auto-scale character to reasonable human height (~1.4m)
+      const box = new THREE.Box3().setFromObject(this.model);
+      const size = new THREE.Vector3();
+      box.getSize(size);
 
-    // Eyes
-    const eyeMat = new THREE.MeshStandardMaterial({ color: 0x1a0a00 });
-    for (const xOff of [-0.07, 0.07]) {
-      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), eyeMat);
-      eye.position.set(xOff, 1.14, 0.2);
-      this.group.add(eye);
-    }
+      if (size.y > 0) {
+        const targetHeight = 1.4;
+        const scaleFactor = targetHeight / size.y;
+        this.model.scale.setScalar(scaleFactor);
 
-    // Arms (small cylinders)
-    for (const side of [-1, 1]) {
-      const arm = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.05, 0.05, 0.35, 8),
-        bodyMat,
-      );
-      arm.rotation.z = side * Math.PI / 3;
-      arm.position.set(side * 0.28, 0.7, 0);
-      this.group.add(arm);
-    }
+        // Adjust position so feet touch the ground (y=0)
+        const scaledBox = new THREE.Box3().setFromObject(this.model);
+        this.model.position.y = -scaledBox.min.y;
+      }
 
-    this._bodyGroup = this.group;
+      this.group.add(this.model);
+    }, undefined, (err) => {
+      console.error('Failed to load customer GLB model:', err);
+    });
   }
 
   /** Show the NPC with an order */

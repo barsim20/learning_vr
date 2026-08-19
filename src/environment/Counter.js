@@ -4,6 +4,7 @@
  */
 
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 export class Counter {
   constructor(scene) {
@@ -11,38 +12,27 @@ export class Counter {
     this.group = new THREE.Group();
     scene.add(this.group);
 
-    this._build();
+    this._loadModel();
   }
 
-  _build() {
-    const g = this.group;
+  _loadModel() {
+    const loader = new GLTFLoader();
+    loader.load('/3d_assets/frontdesk.glb', (gltf) => {
+      this.model = gltf.scene;
 
-    const counterMat = new THREE.MeshStandardMaterial({ color: 0xe63946, roughness: 0.6 }); // BrainDonald's red
-    const topMat     = new THREE.MeshStandardMaterial({ color: 0xfff1dc, roughness: 0.4 }); // cream top
+      this.model.traverse((child) => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+        }
+      });
 
-    // Main counter body
-    const body = new THREE.Mesh(
-      new THREE.BoxGeometry(5, 1.1, 0.6),
-      counterMat,
-    );
-    body.position.set(0, 0.55, -0.5);
-    body.castShadow = true;
-    g.add(body);
+      // Position frontdesk at counter area (0, 0, -0.5)
+      this.model.position.set(0, 0, -0.5);
 
-    // Counter top surface
-    const top = new THREE.Mesh(
-      new THREE.BoxGeometry(5.1, 0.08, 0.7),
-      topMat,
-    );
-    top.position.set(0, 1.1, -0.5);
-    g.add(top);
-
-    // Divider stripe — "ORDERS" side vs "TAKE AWAY" side
-    const divider = new THREE.Mesh(
-      new THREE.BoxGeometry(0.06, 0.5, 0.65),
-      new THREE.MeshStandardMaterial({ color: 0xffd166 }), // gold stripe
-    );
-    divider.position.set(0.8, 0.8, -0.5);
-    g.add(divider);
+      this.group.add(this.model);
+    }, undefined, (err) => {
+      console.error('Failed to load frontdesk GLB model:', err);
+    });
   }
 }
