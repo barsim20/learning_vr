@@ -21,8 +21,8 @@ export class StartScreen {
     this.onStart = onStart;
 
     this.group = new THREE.Group();
-    // Position directly in front of spawn behind counter (x=0, y=1.55, z=-1.1)
-    this.group.position.set(0, 1.55, -1.1);
+    // Position directly in front of spawn position (x=0, y=1.55, z=1.0)
+    this.group.position.set(0, 1.55, 1.0);
     scene.add(this.group);
 
     this._canvas  = document.createElement('canvas');
@@ -59,42 +59,42 @@ export class StartScreen {
   }
 
   _buildButton() {
-    // 3D Interactive Start Button
+    // 3D Interactive Start Button (Enlarged for easy hit-testing)
     this._button = new THREE.Mesh(
-      new THREE.BoxGeometry(0.5, 0.12, 0.04),
+      new THREE.BoxGeometry(0.8, 0.22, 0.06),
       new THREE.MeshStandardMaterial({
         color: 0x06d6a0,
         emissive: 0x06d6a0,
-        emissiveIntensity: 0.3,
+        emissiveIntensity: 0.4,
         roughness: 0.3,
       }),
     );
-    this._button.position.set(0, -0.24, 0.03);
+    this._button.position.set(0, -0.26, 0.04);
     this.group.add(this._button);
 
     // Canvas label on button
     const btnCanvas = document.createElement('canvas');
-    btnCanvas.width = 256;
-    btnCanvas.height = 64;
+    btnCanvas.width = 384;
+    btnCanvas.height = 96;
     const btnCtx = btnCanvas.getContext('2d');
     btnCtx.fillStyle = '#ffffff';
-    btnCtx.font = 'bold 28px Arial';
+    btnCtx.font = 'bold 38px Arial';
     btnCtx.textAlign = 'center';
     btnCtx.textBaseline = 'middle';
-    btnCtx.fillText('▶ START SHIFT', 128, 32);
+    btnCtx.fillText('▶ START SHIFT', 192, 48);
 
     const btnTex = new THREE.CanvasTexture(btnCanvas);
     const btnLabel = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.48, 0.11),
+      new THREE.PlaneGeometry(0.76, 0.2),
       new THREE.MeshBasicMaterial({ map: btnTex, transparent: true }),
     );
-    btnLabel.position.z = 0.022;
+    btnLabel.position.z = 0.032;
     this._button.add(btnLabel);
 
     // Hover & Click handlers
     this._button.userData.onHover = (_, isHover) => {
-      this._button.material.emissiveIntensity = isHover ? 0.8 : 0.3;
-      this._button.scale.setScalar(isHover ? 1.05 : 1.0);
+      this._button.material.emissiveIntensity = isHover ? 0.9 : 0.4;
+      this._button.scale.setScalar(isHover ? 1.08 : 1.0);
     };
 
     this._button.userData.onSelect = () => {

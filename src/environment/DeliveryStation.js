@@ -43,9 +43,9 @@ export class DeliveryStation {
   }
 
   _build() {
-    // Platform base
+    // Platform base (Enlarged for easy targeting)
     this._platform = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.4, 0.4, 0.08, 24),
+      new THREE.CylinderGeometry(0.6, 0.6, 0.12, 24),
       new THREE.MeshStandardMaterial({
         color: 0xffd166,
         emissive: 0xffd166,
@@ -57,9 +57,17 @@ export class DeliveryStation {
     this._platform.castShadow = true;
     this.group.add(this._platform);
 
+    // Large invisible hit box volume
+    const hitBox = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.9, 0.9, 0.6, 16),
+      new THREE.MeshBasicMaterial({ visible: false }),
+    );
+    hitBox.position.y = 1.1;
+    this.group.add(hitBox);
+
     // Station pedestal
     const pedestal = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.15, 0.2, 1.0, 16),
+      new THREE.CylinderGeometry(0.2, 0.25, 1.0, 16),
       new THREE.MeshStandardMaterial({ color: 0xe63946, roughness: 0.6 }),
     );
     pedestal.position.y = 0.5;
@@ -67,21 +75,29 @@ export class DeliveryStation {
 
     // "DELIVER HERE" label
     const label = createTextLabel('DELIVER HERE', {
-      fontSize: 20,
+      fontSize: 22,
       fontColor: '#1a0a00',
       bgColor: 'rgba(255,209,102,0.9)',
-      worldScale: 0.005,
+      worldScale: 0.006,
     });
-    label.position.set(0, 1.25, 0);
+    label.position.set(0, 1.35, 0);
     this.group.add(label);
 
     // Register for input
-    this.input.register(this._platform);
-    this._platform.userData.onHover = (_, isHover) => {
+    const onSelect = () => this._onDeliver();
+    const onHover  = (_, isHover) => {
       if (gameState.isIn(STATE.CARRYING)) {
         this._platform.material.emissiveIntensity = isHover ? 1.0 : 0.5;
       }
     };
+
+    this._platform.userData.onSelect = onSelect;
+    this._platform.userData.onHover  = onHover;
+    hitBox.userData.onSelect         = onSelect;
+    hitBox.userData.onHover          = onHover;
+
+    this.input.register(this._platform);
+    this.input.register(hitBox);
   }
 
   _onDeliver() {

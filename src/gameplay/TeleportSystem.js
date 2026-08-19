@@ -10,7 +10,7 @@ import { createTextLabel } from '../utils/TextLabel.js';
 import { audioManager } from '../core/AudioManager.js';
 
 const TELEPORT_NODES = [
-  { id: 'counter',  label: '📍 COUNTER',   target: new THREE.Vector3(0, 1.6, -1.8),   floorPos: new THREE.Vector3(0, 0.02, -1.8),   color: 0xe63946 },
+  { id: 'counter',  label: '📍 COUNTER',   target: new THREE.Vector3(0, 1.6, 1.8),    floorPos: new THREE.Vector3(0, 0.02, 1.8),    color: 0xe63946 },
   { id: 'math',     label: '🟡 MATH AISLE', target: new THREE.Vector3(-5, 1.6, -5.5),  floorPos: new THREE.Vector3(-5, 0.02, -5.5),  color: 0xffd166 },
   { id: 'food',     label: '🟢 FOOD AISLE', target: new THREE.Vector3(0, 1.6, -5.5),   floorPos: new THREE.Vector3(0, 0.02, -5.5),   color: 0x06d6a0 },
   { id: 'sports',   label: '🔵 SPORTS AISLE',target: new THREE.Vector3(5, 1.6, -5.5),  floorPos: new THREE.Vector3(5, 0.02, -5.5),   color: 0x118ab2 },
@@ -44,17 +44,17 @@ export class TeleportSystem {
       const nodeGroup = new THREE.Group();
       nodeGroup.position.copy(data.floorPos);
 
-      // Floor Ring Disc
+      // Floor Ring Disc (Enlarged for easy targeting)
       const discMat = new THREE.MeshStandardMaterial({
         color: data.color,
         emissive: data.color,
-        emissiveIntensity: 0.4,
+        emissiveIntensity: 0.5,
         roughness: 0.3,
         side: THREE.DoubleSide,
       });
 
       const disc = new THREE.Mesh(
-        new THREE.RingGeometry(0.35, 0.45, 32),
+        new THREE.RingGeometry(0.5, 0.75, 32),
         discMat,
       );
       disc.rotation.x = -Math.PI / 2;
@@ -62,34 +62,47 @@ export class TeleportSystem {
 
       // Center glowing pulse dot
       const centerDot = new THREE.Mesh(
-        new THREE.CircleGeometry(0.15, 16),
-        new THREE.MeshBasicMaterial({ color: data.color, transparent: true, opacity: 0.6 }),
+        new THREE.CircleGeometry(0.25, 16),
+        new THREE.MeshBasicMaterial({ color: data.color, transparent: true, opacity: 0.7 }),
       );
       centerDot.rotation.x = -Math.PI / 2;
       centerDot.position.y = 0.005;
       nodeGroup.add(centerDot);
 
+      // Invisible enlarged cylinder hit volume (1.4m diameter)
+      const hitCylinder = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.7, 0.7, 0.4, 16),
+        new THREE.MeshBasicMaterial({ visible: false }),
+      );
+      hitCylinder.position.y = 0.2;
+      nodeGroup.add(hitCylinder);
+
       // Floating label above node
       const label = createTextLabel(data.label, {
-        fontSize: 16,
+        fontSize: 18,
         fontColor: '#ffffff',
         bgColor: 'rgba(20,10,0,0.85)',
-        worldScale: 0.005,
+        worldScale: 0.006,
       });
-      label.position.set(0, 0.4, 0);
+      label.position.set(0, 0.6, 0);
       nodeGroup.add(label);
 
       // Interaction registration
-      disc.userData.onHover = (_, isHover) => {
-        discMat.emissiveIntensity = isHover ? 1.0 : 0.4;
+      const onHover = (_, isHover) => {
+        discMat.emissiveIntensity = isHover ? 1.0 : 0.5;
         centerDot.scale.setScalar(isHover ? 1.3 : 1.0);
       };
-
-      disc.userData.onSelect = () => {
+      const onSelect = () => {
         this.teleportTo(data.target);
       };
 
+      disc.userData.onHover        = onHover;
+      disc.userData.onSelect       = onSelect;
+      hitCylinder.userData.onHover  = onHover;
+      hitCylinder.userData.onSelect = onSelect;
+
       this.input.register(disc);
+      this.input.register(hitCylinder);
       this.group.add(nodeGroup);
       this._nodes.push({ disc, discMat, centerDot, data });
     }

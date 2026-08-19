@@ -54,17 +54,16 @@ export class MemoryPuzzle {
   // ── Grid construction ──────────────────────────────────────────────────
 
   _buildGrid() {
-    const size   = 0.12;
-    const gap    = 0.03;
+    const size   = 0.20;
+    const gap    = 0.04;
     const step   = size + gap;
-    const offset = step; // centre the 3×3
 
     for (let i = 0; i < 9; i++) {
       const col = i % 3;
       const row = Math.floor(i / 3);
 
       const cell = new THREE.Mesh(
-        new THREE.BoxGeometry(size, size, 0.03),
+        new THREE.BoxGeometry(size, size, 0.04),
         new THREE.MeshStandardMaterial({ color: COLOR_DEFAULT, roughness: 0.5, emissive: 0x000000, emissiveIntensity: 0 }),
       );
       cell.position.set(

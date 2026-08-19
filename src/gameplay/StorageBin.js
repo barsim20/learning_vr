@@ -61,12 +61,21 @@ export class StorageBin {
     const color = CATEGORY_COLORS[this.itemData.category];
     const darkerColor = new THREE.Color(color).multiplyScalar(0.7);
 
+    // Enlarge Door Mesh Target
     this._door = new THREE.Mesh(
-      new THREE.BoxGeometry(0.46, 0.46, 0.04),
+      new THREE.BoxGeometry(0.58, 0.58, 0.05),
       new THREE.MeshStandardMaterial({ color: darkerColor, roughness: 0.5 }),
     );
     this._door.position.set(0, 0, 0.24);
     this.group.add(this._door);
+
+    // Large invisible hit box volume around bin door for generous gaze & pinch selection
+    const hitBox = new THREE.Mesh(
+      new THREE.BoxGeometry(0.85, 0.85, 0.4),
+      new THREE.MeshBasicMaterial({ visible: false }),
+    );
+    hitBox.position.set(0, 0, 0.25);
+    this.group.add(hitBox);
 
     // Lock icon (prominent gold padlock on door face)
     const lockGroup = new THREE.Group();
@@ -74,23 +83,23 @@ export class StorageBin {
 
     // Padlock body
     const lockBody = new THREE.Mesh(
-      new THREE.BoxGeometry(0.12, 0.1, 0.04),
+      new THREE.BoxGeometry(0.14, 0.12, 0.05),
       new THREE.MeshStandardMaterial({ color: 0xffd166, metalness: 0.8, roughness: 0.3 }),
     );
     lockGroup.add(lockBody);
 
     // Padlock shackle (u-shape top)
     const shackle = new THREE.Mesh(
-      new THREE.TorusGeometry(0.04, 0.012, 8, 16, Math.PI),
+      new THREE.TorusGeometry(0.045, 0.015, 8, 16, Math.PI),
       new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.9, roughness: 0.2 }),
     );
-    shackle.position.set(0, 0.05, 0);
+    shackle.position.set(0, 0.06, 0);
     shackle.rotation.x = Math.PI;
     lockGroup.add(shackle);
 
     // Keyhole
     const keyhole = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.012, 0.012, 0.045, 8),
+      new THREE.CylinderGeometry(0.015, 0.015, 0.05, 8),
       new THREE.MeshStandardMaterial({ color: 0x111111 }),
     );
     keyhole.rotation.x = Math.PI / 2;
@@ -102,7 +111,7 @@ export class StorageBin {
 
     // Glowing Task Target Beacon (Arrow/Diamond floating above target bin)
     this._taskBeacon = new THREE.Mesh(
-      new THREE.OctahedronGeometry(0.08, 0),
+      new THREE.OctahedronGeometry(0.12, 0),
       new THREE.MeshStandardMaterial({
         color: 0xffd166,
         emissive: 0xffd166,
@@ -113,14 +122,21 @@ export class StorageBin {
     this._taskBeacon.visible = false;
     this.group.add(this._taskBeacon);
 
-    // Door is the click target
-    this._door.userData.onSelect = () => this._onDoorClick();
-    this._door.userData.onHover  = (_, isHover) => {
+    // Register both door and enlarged hitBox for click/gaze
+    const onSelect = () => this._onDoorClick();
+    const onHover  = (_, isHover) => {
       this._door.material.emissive = isHover
-        ? new THREE.Color(CATEGORY_COLORS[this.itemData.category]).multiplyScalar(0.3)
+        ? new THREE.Color(CATEGORY_COLORS[this.itemData.category]).multiplyScalar(0.4)
         : new THREE.Color(0);
     };
+
+    this._door.userData.onSelect = onSelect;
+    this._door.userData.onHover  = onHover;
+    hitBox.userData.onSelect     = onSelect;
+    hitBox.userData.onHover      = onHover;
+
     this.input.register(this._door);
+    this.input.register(hitBox);
   }
 
   _buildLabel() {
