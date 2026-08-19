@@ -66,8 +66,8 @@ export class VRSession {
     this._orbitControls = new OrbitControls(this.camera, this.renderer.domElement);
     this._orbitControls.enableDamping = true;
     this._orbitControls.dampingFactor = 0.1;
-    this._orbitControls.target.set(0, 1.5, -3);
-    this.camera.position.set(0, 1.6, 2);
+    this._orbitControls.target.set(0, 1.4, 0.5); // Target customer in front of counter
+    this.camera.position.set(0, 1.6, -1.8);     // Store Manager behind counter
     this._orbitControls.update();
   }
 

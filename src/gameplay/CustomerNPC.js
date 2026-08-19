@@ -19,7 +19,7 @@ export class CustomerNPC {
 
     this.group = new THREE.Group();
     this.group.position.copy(position);
-    this.group.rotation.y = Math.PI / 4; // face toward counter / player area
+    this.group.rotation.y = Math.PI; // Face towards Store Manager behind counter
     scene.add(this.group);
 
     this._buildCharacter();
