@@ -55,14 +55,27 @@ export class KnowledgeItem {
     this._label.position.y = 0.22;
     this.mesh.add(this._label);
 
+    // Invisible generous padding hitbox around the item for easy pickup
+    this.hitBox = new THREE.Mesh(
+      new THREE.BoxGeometry(0.45, 0.45, 0.45),
+      new THREE.MeshBasicMaterial({ visible: false }),
+    );
+    this.mesh.add(this.hitBox);
+
     // Interaction
-    this.mesh.userData.onSelect = () => this._pickup();
-    this.mesh.userData.onHover  = (_, isHover) => {
+    const onSelect = () => this._pickup();
+    const onHover  = (_, isHover) => {
       this.mesh.material.emissiveIntensity = isHover ? 0.8 : 0.3;
     };
 
+    this.mesh.userData.onSelect   = onSelect;
+    this.mesh.userData.onHover    = onHover;
+    this.hitBox.userData.onSelect = onSelect;
+    this.hitBox.userData.onHover  = onHover;
+
     this.scene.add(this.mesh);
     this.input.register(this.mesh);
+    this.input.register(this.hitBox);
   }
 
   /** Place item at a world position */
@@ -75,6 +88,7 @@ export class KnowledgeItem {
     if (this.carried) return;
     this.carried = true;
     this.input.unregister(this.mesh);
+    this.input.unregister(this.hitBox);
     this.mesh.material.emissiveIntensity = 1.2;
     gameState._carriedItemRef = this; // so main.js can drive updateCarried
     if (this.onPickup) this.onPickup(this);
@@ -107,6 +121,7 @@ export class KnowledgeItem {
 
   dispose() {
     this.input.unregister(this.mesh);
+    this.input.unregister(this.hitBox);
     this.scene.remove(this.mesh);
     this.mesh.geometry.dispose();
     this.mesh.material.dispose();

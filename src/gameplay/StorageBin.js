@@ -135,6 +135,7 @@ export class StorageBin {
     hitBox.userData.onSelect     = onSelect;
     hitBox.userData.onHover      = onHover;
 
+    this._hitBox = hitBox;
     this.input.register(this._door);
     this.input.register(hitBox);
   }
@@ -252,6 +253,7 @@ export class StorageBin {
 
   dispose() {
     this.input.unregister(this._door);
+    if (this._hitBox) this.input.unregister(this._hitBox);
     this._puzzle.dispose();
     if (this._item) this._item.dispose();
     this.scene.remove(this.group);
