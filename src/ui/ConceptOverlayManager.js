@@ -144,29 +144,44 @@ export class ConceptOverlayManager {
     ctx.fillText(conceptData.icon, w / 2, 120);
 
     // Concept Title (Bold, kid-friendly)
-    ctx.font = 'bold 30px Arial, sans-serif';
+    ctx.font = 'bold 28px Arial, sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(conceptData.concept, w / 2, 185);
+    ctx.fillText(conceptData.concept, w / 2, 175);
 
     // Subtitle divider line
     ctx.beginPath();
-    ctx.moveTo(80, 212);
-    ctx.lineTo(w - 80, 212);
+    ctx.moveTo(80, 200);
+    ctx.lineTo(w - 80, 200);
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Explanation Sentence (wrapped)
-    ctx.font = '22px Arial, sans-serif';
-    ctx.fillStyle = '#e0e0e0';
+    // 1. Scenario Context Line (Highlighted Gold)
+    let currentY = 215;
+    if (conceptData.scenario) {
+      ctx.font = 'italic bold 20px Arial, sans-serif';
+      ctx.fillStyle = '#ffd166';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+
+      const scenarioLines = wrapText(ctx, `🎮 ${conceptData.scenario}`, w - 80);
+      scenarioLines.forEach((line) => {
+        ctx.fillText(line, w / 2, currentY);
+        currentY += 26;
+      });
+      currentY += 6; // gap before science explanation
+    }
+
+    // 2. Memory Science Explanation Sentence (White/Light Gray)
+    ctx.font = '21px Arial, sans-serif';
+    ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
 
     const lines = wrapText(ctx, `"${conceptData.explanation}"`, w - 80);
-    const lineH = 30;
-    const startY = 230;
-    lines.forEach((line, i) => {
-      ctx.fillText(line, w / 2, startY + i * lineH);
+    lines.forEach((line) => {
+      ctx.fillText(line, w / 2, currentY);
+      currentY += 28;
     });
 
     this.cardTexture.needsUpdate = true;
