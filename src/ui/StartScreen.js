@@ -21,8 +21,8 @@ export class StartScreen {
     this.onStart = onStart;
 
     this.group = new THREE.Group();
-    // Position directly in front of spawn position (x=0, y=1.55, z=1.0)
-    this.group.position.set(0, 1.55, 1.0);
+    // Position directly in front of spawn position behind counter (x=0, y=1.55, z=-1.2)
+    this.group.position.set(0, 1.55, -1.2);
     scene.add(this.group);
 
     this._canvas  = document.createElement('canvas');

@@ -26,7 +26,7 @@ export class DeliveryStation {
     scene.add(this.group);
 
     this._build();
-    this._scoreboard = new Scoreboard(this.group);
+    this._scoreboard = new Scoreboard(this.group, new THREE.Vector3(0, 2.05, 0));
 
     // React to score changes
     gameState.on('score', data => this._scoreboard.update(data));

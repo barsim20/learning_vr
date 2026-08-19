@@ -47,8 +47,8 @@ scene.background = new THREE.Color(0x1a0a00); // dark warm
 scene.fog = new THREE.Fog(0x1a0a00, 12, 22);
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 50);
-camera.position.set(0, 1.6, 1.8);  // Player starts in front of counter
-camera.lookAt(0, 1.4, -0.5);       // Facing toward counter and storage aisles
+camera.position.set(0, 1.6, -2.0);  // Store Manager stands behind counter (shelves side)
+camera.lookAt(0, 1.4, 0.5);        // Looking forward toward counter and customer
 
 // ── VR Session ───────────────────────────────────────────────────────────────
 
@@ -79,7 +79,7 @@ const teleportSystem = new TeleportSystem(scene, camera, input, vrSession);
 
 // ── Gameplay ─────────────────────────────────────────────────────────────────
 
-const npcPosition = new THREE.Vector3(0, 0, -1.2); // Customer stands behind/beside counter facing player
+const npcPosition = new THREE.Vector3(0, 0, 1.0); // Customer stands in front of the counter
 const orderSystem = new OrderSystem(scene, npcPosition);
 
 // ── UI Overlays (StartScreen + ObjectiveHUD) ──────────────────────────────────
