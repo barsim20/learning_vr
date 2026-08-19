@@ -118,21 +118,34 @@ export class InputManager {
 
   _updateHandGestures() {
     const session = this.renderer.xr.getSession();
-    if (!session || !session.inputSources) return null;
+    if (!session || !session.inputSources) {
+      this._hideHandRays();
+      return null;
+    }
+
+    const frame = this.renderer.xr.getFrame();
+    const referenceSpace = this.renderer.xr.getReferenceSpace();
+    if (!frame || !referenceSpace) {
+      this._hideHandRays();
+      return null;
+    }
 
     let handHit = null;
+    const activeSources = new Set();
 
     for (const source of session.inputSources) {
       if (source.hand) {
+        activeSources.add(source);
+
         const indexTip = source.hand.get('index-finger-tip');
         const thumbTip = source.hand.get('thumb-tip');
+        const indexProximal = source.hand.get('index-finger-phalanx-proximal') ||
+                              source.hand.get('index-finger-phalanx-intermediate') ||
+                              source.hand.get('index-finger-phalanx-distal');
 
         if (indexTip && thumbTip) {
-          const frame = this.renderer.xr.getFrame();
-          const referenceSpace = this.renderer.xr.getReferenceSpace();
-
-          const indexPose = frame?.getJointPose?.(indexTip, referenceSpace);
-          const thumbPose = frame?.getJointPose?.(thumbTip, referenceSpace);
+          const indexPose = frame.getJointPose?.(indexTip, referenceSpace);
+          const thumbPose = frame.getJointPose?.(thumbTip, referenceSpace);
 
           if (indexPose && thumbPose) {
             const p1 = indexPose.transform.position;
@@ -142,22 +155,64 @@ export class InputManager {
             const isPinching = dist < 0.025; // 2.5 cm pinch threshold
             const wasPinching = this._pinchingHands.has(source);
 
+            // Compute Index Finger Pointing Ray
+            const fingerTipPos = new THREE.Vector3(p1.x, p1.y, p1.z);
+            let rayDir = new THREE.Vector3();
+
+            const indexProximalPose = indexProximal ? frame.getJointPose?.(indexProximal, referenceSpace) : null;
+            if (indexProximalPose) {
+              const pBase = indexProximalPose.transform.position;
+              rayDir.set(p1.x - pBase.x, p1.y - pBase.y, p1.z - pBase.z);
+              if (rayDir.lengthSq() > 0.00001) {
+                rayDir.normalize();
+              } else {
+                this.camera.getWorldDirection(rayDir);
+              }
+            } else {
+              const targetRayPose = source.targetRaySpace ? frame.getPose?.(source.targetRaySpace, referenceSpace) : null;
+              if (targetRayPose) {
+                const q = new THREE.Quaternion(
+                  targetRayPose.transform.orientation.x,
+                  targetRayPose.transform.orientation.y,
+                  targetRayPose.transform.orientation.z,
+                  targetRayPose.transform.orientation.w
+                );
+                rayDir.set(0, 0, -1).applyQuaternion(q).normalize();
+              } else {
+                this.camera.getWorldDirection(rayDir);
+              }
+            }
+
+            // Raycast along index finger pointing ray
+            this._raycaster.set(fingerTipPos, rayDir);
+            const hits = this._raycaster.intersectObjects(this.interactables, true);
+            let currentHit = null;
+            let rayLength = 3.0;
+
+            if (hits.length > 0) {
+              currentHit = this._findInteractable(hits[0].object);
+              rayLength = hits[0].distance;
+            }
+
+            // Continuous hand hover target
+            if (currentHit) {
+              handHit = currentHit;
+            }
+
+            // Update finger pointer visual line
+            const line = this._getOrCreateHandRay(source);
+            const endPos = fingerTipPos.clone().addScaledVector(rayDir, rayLength);
+            line.geometry.setFromPoints([fingerTipPos, endPos]);
+            line.geometry.attributes.position.needsUpdate = true;
+            line.material.color.setHex(isPinching ? 0xffd166 : 0x06d6a0);
+            line.material.opacity = isPinching ? 1.0 : 0.6;
+            line.visible = true;
+
+            // Handle Pinch Trigger
             if (isPinching && !wasPinching) {
               this._pinchingHands.add(source);
-
-              // Raycast from pinch point
-              const pinchPos = new THREE.Vector3(
-                (p1.x + p2.x) / 2,
-                (p1.y + p2.y) / 2,
-                (p1.z + p2.z) / 2,
-              );
-
-              // Raycast from pinch toward camera direction or front
-              this._raycaster.set(pinchPos, this.camera.getWorldDirection(new THREE.Vector3()));
-              const hits = this._raycaster.intersectObjects(this.interactables, true);
-              if (hits.length > 0) {
-                handHit = this._findInteractable(hits[0].object);
-                if (handHit) this._fireSelect(handHit);
+              if (currentHit) {
+                this._fireSelect(currentHit);
               }
             } else if (!isPinching && wasPinching) {
               this._pinchingHands.delete(source);
@@ -167,7 +222,44 @@ export class InputManager {
       }
     }
 
+    // Hide rays for inactive hand sources
+    if (this._handRayMap) {
+      for (const [source, line] of this._handRayMap.entries()) {
+        if (!activeSources.has(source)) {
+          line.visible = false;
+        }
+      }
+    }
+
     return handHit;
+  }
+
+  _getOrCreateHandRay(source) {
+    if (!this._handRayMap) this._handRayMap = new Map();
+    let line = this._handRayMap.get(source);
+    if (!line) {
+      const geo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(0, 0, -3),
+      ]);
+      const mat = new THREE.LineBasicMaterial({
+        color: 0x06d6a0,
+        transparent: true,
+        opacity: 0.6,
+      });
+      line = new THREE.Line(geo, mat);
+      this.scene.add(line);
+      this._handRayMap.set(source, line);
+    }
+    return line;
+  }
+
+  _hideHandRays() {
+    if (this._handRayMap) {
+      for (const line of this._handRayMap.values()) {
+        line.visible = false;
+      }
+    }
   }
 
   // ── Main Update (called each frame) ──────────────────────────────────────
