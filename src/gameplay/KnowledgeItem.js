@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { createTextLabel } from '../utils/TextLabel.js';
 import { CATEGORY_COLORS } from '../content/knowledgeDatabase.js';
 import { gameState } from '../core/GameState.js';
+import { audioManager } from '../core/AudioManager.js';
 
 export class KnowledgeItem {
   /**
@@ -87,6 +88,7 @@ export class KnowledgeItem {
   _pickup() {
     if (this.carried) return;
     this.carried = true;
+    audioManager.play('pickup');
     this.input.unregister(this.mesh);
     this.input.unregister(this.hitBox);
     this.mesh.material.emissiveIntensity = 1.2;

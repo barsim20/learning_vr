@@ -11,6 +11,7 @@ import { MemoryPuzzle } from './MemoryPuzzle.js';
 import { KnowledgeItem } from './KnowledgeItem.js';
 import { gameState, STATE } from '../core/GameState.js';
 import { conceptOverlayManager } from '../ui/ConceptOverlayManager.js';
+import { audioManager } from '../core/AudioManager.js';
 
 export class StorageBin {
   /**
@@ -174,7 +175,8 @@ export class StorageBin {
     // Only interactable when a matching order is active
     if (!gameState.activeOrder) return;
     if (gameState.activeOrder.id !== this.itemData.id) {
-      // Wrong bin — flash red briefly
+      // Wrong bin — flash red briefly and play buzz
+      audioManager.play('buzz');
       const orig = this._door.material.color.getHex();
       this._door.material.color.setHex(0xe63946);
       setTimeout(() => this._door.material.color.setHex(orig), 400);
@@ -196,6 +198,7 @@ export class StorageBin {
 
   _openBin() {
     this.isOpen = true;
+    audioManager.play('doorOpen');
 
     // Animate door opening (slide up)
     this._animateDoorOpen();
@@ -233,8 +236,20 @@ export class StorageBin {
   }
 
   _onItemPickup(item) {
+    this._item = null;
     gameState.carriedItem = item.data;
     gameState.transition(STATE.CARRYING);
+  }
+
+  /** Reset bin to locked closed state for next retrieval tasks */
+  reset() {
+    this.isOpen = false;
+    this._door.position.y = 0;
+    this._lockMesh.visible = true;
+    if (this._item) {
+      this._item.dispose();
+      this._item = null;
+    }
   }
 
   // ── Per-frame update ─────────────────────────────────────────────────

@@ -11,7 +11,7 @@ export class Scoreboard {
    * @param {THREE.Object3D} parent
    * @param {THREE.Vector3} localPos  position relative to parent
    */
-  constructor(parent, localPos = new THREE.Vector3(0, 1.6, 0)) {
+  constructor(parent, localPos = new THREE.Vector3(0, 2.55, 0)) {
     this._score  = 0;
     this._streak = 0;
 

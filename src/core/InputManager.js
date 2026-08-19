@@ -11,6 +11,7 @@
 
 import * as THREE from 'three';
 import { GazeReticle } from '../ui/GazeReticle.js';
+import { audioManager } from './AudioManager.js';
 
 const DWELL_TIME_MS = 1000; // 1 second continuous gaze triggers selection
 
@@ -344,10 +345,16 @@ export class InputManager {
   }
 
   _fireSelect(obj) {
+    if (obj.userData.cellIndex === undefined) {
+      audioManager.play('click');
+    }
     if (obj.userData.onSelect) obj.userData.onSelect(obj);
   }
 
   _fireHover(obj, isHover) {
+    if (isHover) {
+      audioManager.play('hover', { volume: 0.2 });
+    }
     if (obj.userData.onHover) obj.userData.onHover(obj, isHover);
   }
 

@@ -270,7 +270,7 @@ export class ConceptOverlayManager {
     }
 
     this.overlayGroup.visible = true;
-    audioManager.play('chime');
+    audioManager.play('conceptOpen');
   }
 
   _onAcknowledge() {

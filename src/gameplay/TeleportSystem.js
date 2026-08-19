@@ -118,7 +118,7 @@ export class TeleportSystem {
     if (this._isTeleporting) return;
     this._isTeleporting = true;
 
-    audioManager.play('sequenceBeep');
+    audioManager.play('teleport');
 
     const startPos = this.camera.position.clone();
     const duration = 400; // 400ms smooth transition

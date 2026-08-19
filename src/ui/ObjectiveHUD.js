@@ -26,8 +26,14 @@ export class ObjectiveHUD {
     this._texture = new THREE.CanvasTexture(this._canvas);
 
     this._sprite = new THREE.Sprite(
-      new THREE.SpriteMaterial({ map: this._texture, transparent: true, depthWrite: false })
+      new THREE.SpriteMaterial({
+        map: this._texture,
+        transparent: true,
+        depthWrite: false,
+        depthTest: false,
+      })
     );
+    this._sprite.renderOrder = 998;
     this._sprite.scale.set(1.4, 0.22, 1);
     this.group.add(this._sprite);
 
@@ -36,6 +42,7 @@ export class ObjectiveHUD {
 
     // Subscribe to state changes
     gameState.on('change', () => this.updateState());
+    gameState.on('order',  () => this.updateState());
   }
 
   updateState() {
@@ -74,7 +81,7 @@ export class ObjectiveHUD {
         break;
 
       case STATE.RESULT:
-        msg = '🎉 Delivery complete!';
+        msg = '🎉 Delivery complete! Next customer arriving...';
         break;
 
       default:

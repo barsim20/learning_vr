@@ -146,7 +146,7 @@ export class MemoryPuzzle {
       cell.material.color.setHex(COLOR_LIT);
       cell.material.emissive.setHex(COLOR_LIT);
       cell.material.emissiveIntensity = 1;
-      audioManager.play('sequenceBeep');
+      audioManager.play('sequenceBeep', { cellIndex: idx });
 
       setTimeout(() => {
         cell.material.color.setHex(COLOR_DEFAULT);
@@ -163,11 +163,11 @@ export class MemoryPuzzle {
     const expected = this._sequence[this._playerInput.length];
 
     if (idx === expected) {
-      // Correct tap
+      // Correct tap: play satisfying responsive marimba/vibraphone tap tone
       cell.material.color.setHex(COLOR_SUCCESS);
       cell.material.emissive.setHex(COLOR_SUCCESS);
       cell.material.emissiveIntensity = 0.5;
-      audioManager.play('ding');
+      audioManager.play('puzzleTap', { cellIndex: idx });
       this._playerInput.push(idx);
 
       setTimeout(() => {

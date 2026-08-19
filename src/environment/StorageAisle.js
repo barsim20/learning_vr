@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { KNOWLEDGE_ITEMS, CATEGORIES, CATEGORY_COLORS, CATEGORY_LABELS } from '../content/knowledgeDatabase.js';
 import { StorageBin } from '../gameplay/StorageBin.js';
 import { createTextLabel } from '../utils/TextLabel.js';
+import { gameState, STATE } from '../core/GameState.js';
 
 // One aisle per category, spread left-to-right
 const AISLE_CONFIG = [
@@ -16,9 +17,9 @@ const AISLE_CONFIG = [
   { category: CATEGORIES.SPORTS, x:  5 },
 ];
 
-const AISLE_Z = -7;       // how far back aisles are
-const BIN_SPACING_Y = 0.75;
-const BIN_START_Y   = 1.5;
+const AISLE_Z = -7;       // Back wall coordinate for aisles
+const BIN_SPACING_Y = 0.70;
+const BIN_START_Y   = 1.10;
 
 export class StorageAisle {
   /**
@@ -36,6 +37,17 @@ export class StorageAisle {
     for (const aisle of AISLE_CONFIG) {
       this._buildAisle(aisle);
     }
+
+    // Reset opened bins when a new order arrives
+    gameState.on(STATE.ORDER, () => this.resetBins());
+  }
+
+  resetBins() {
+    for (const bin of this.bins) {
+      if (bin.isOpen) {
+        bin.reset();
+      }
+    }
   }
 
   _buildAisle({ category, x }) {
@@ -43,50 +55,70 @@ export class StorageAisle {
     const label  = CATEGORY_LABELS[category];
     const items  = KNOWLEDGE_ITEMS.filter(i => i.category === category);
 
-    // ── Shelf backing ──────────────────────────────────────────────────
-    const shelfMat = new THREE.MeshStandardMaterial({ color: 0x8b5e3c, roughness: 0.9 }); // wood brown
+    const shelfMat = new THREE.MeshStandardMaterial({ color: 0x8b5e3c, roughness: 0.85 }); // warm wood
+    const totalBins = items.length;
+    const shelfCenterY = BIN_START_Y + ((totalBins - 1) * BIN_SPACING_Y) / 2; // 1.80
+    const shelfHeight = (totalBins - 1) * BIN_SPACING_Y + 0.70; // 2.10m
+    const shelfZ = AISLE_Z + 0.28;
 
-    // Back panel
+    // ── 1. Shelf Backing Panel ───────────────────────────────────────────
     const back = new THREE.Mesh(
-      new THREE.BoxGeometry(1.2, 2.5, 0.08),
+      new THREE.BoxGeometry(1.16, shelfHeight, 0.05),
       shelfMat,
     );
-    back.position.set(x, 1.35, AISLE_Z);
+    back.position.set(x, shelfCenterY, AISLE_Z - 0.02);
     back.castShadow = true;
     this.group.add(back);
 
-    // Shelf planks
-    for (let i = 0; i < items.length + 1; i++) {
-      const plank = new THREE.Mesh(
-        new THREE.BoxGeometry(1.2, 0.06, 0.3),
+    // ── 2. Shelf Side Uprights (Left & Right) ────────────────────────────
+    for (const side of [-1, 1]) {
+      const sideUpright = new THREE.Mesh(
+        new THREE.BoxGeometry(0.05, shelfHeight, 0.60),
         shelfMat,
       );
-      plank.position.set(x, BIN_START_Y - 0.35 + i * BIN_SPACING_Y - BIN_SPACING_Y * 1.5, AISLE_Z + 0.14);
+      sideUpright.position.set(x + side * 0.58, shelfCenterY, shelfZ);
+      sideUpright.castShadow = true;
+      this.group.add(sideUpright);
+    }
+
+    // ── 3. Shelf Horizontal Planks (Under Each Bin + Top Roof) ───────────
+    for (let i = 0; i <= totalBins; i++) {
+      const plankY = i < totalBins
+        ? (BIN_START_Y + i * BIN_SPACING_Y) - 0.30  // supporting plank under bin i
+        : (BIN_START_Y + (totalBins - 1) * BIN_SPACING_Y) + 0.30; // top roof plank
+
+      const plank = new THREE.Mesh(
+        new THREE.BoxGeometry(1.12, 0.05, 0.60),
+        shelfMat,
+      );
+      plank.position.set(x, plankY, shelfZ);
+      plank.castShadow = true;
       this.group.add(plank);
     }
 
-    // ── Category colour strip / header ────────────────────────────────
+    // ── 4. Category Header Banner & Label ────────────────────────────────
+    const topPlankY = BIN_START_Y + (totalBins - 1) * BIN_SPACING_Y + 0.30;
     const header = new THREE.Mesh(
-      new THREE.BoxGeometry(1.2, 0.25, 0.05),
-      new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.3 }),
+      new THREE.BoxGeometry(1.16, 0.22, 0.06),
+      new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.35, roughness: 0.4 }),
     );
-    header.position.set(x, 2.75, AISLE_Z + 0.03);
+    header.position.set(x, topPlankY + 0.16, shelfZ);
     this.group.add(header);
 
-    // Category label above header
+    // Category Text Label
     const catLabel = createTextLabel(label, {
       fontSize: 28,
       fontColor: '#ffffff',
       bgColor: 'rgba(0,0,0,0)',
       worldScale: 0.007,
     });
-    catLabel.position.set(x, 3.1, AISLE_Z + 0.1);
+    catLabel.position.set(x, topPlankY + 0.42, shelfZ + 0.04);
     this.group.add(catLabel);
 
-    // ── StorageBins ───────────────────────────────────────────────────
+    // ── 5. Storage Bins (Sitting directly on top of each shelf plank) ─────
     items.forEach((itemData, idx) => {
       const binY = BIN_START_Y + idx * BIN_SPACING_Y;
-      const pos  = new THREE.Vector3(x, binY, AISLE_Z + 0.2);
+      const pos  = new THREE.Vector3(x, binY, shelfZ);
       const bin  = new StorageBin(itemData, pos, this.scene, this.input);
       this.bins.push(bin);
     });
