@@ -62,8 +62,12 @@ export class InputManager {
     });
   }
 
+  _getActiveCamera() {
+    return this.renderer.xr.isPresenting ? this.renderer.xr.getCamera() : this.camera;
+  }
+
   _castFromMouse() {
-    this._raycaster.setFromCamera(this._mouse, this.camera);
+    this._raycaster.setFromCamera(this._mouse, this._getActiveCamera());
     const hits = this._raycaster.intersectObjects(this.interactables, true);
     return hits.length > 0 ? this._findInteractable(hits[0].object) : null;
   }
@@ -71,7 +75,7 @@ export class InputManager {
   // ── Gaze Raycasting ──────────────────────────────────────────────────────
 
   _castFromCamera() {
-    this._raycaster.setFromCamera({ x: 0, y: 0 }, this.camera);
+    this._raycaster.setFromCamera({ x: 0, y: 0 }, this._getActiveCamera());
     const hits = this._raycaster.intersectObjects(this.interactables, true);
     return hits.length > 0 ? this._findInteractable(hits[0].object) : null;
   }
@@ -166,7 +170,7 @@ export class InputManager {
               if (rayDir.lengthSq() > 0.00001) {
                 rayDir.normalize();
               } else {
-                this.camera.getWorldDirection(rayDir);
+                this._getActiveCamera().getWorldDirection(rayDir);
               }
             } else {
               const targetRayPose = source.targetRaySpace ? frame.getPose?.(source.targetRaySpace, referenceSpace) : null;
@@ -179,7 +183,7 @@ export class InputManager {
                 );
                 rayDir.set(0, 0, -1).applyQuaternion(q).normalize();
               } else {
-                this.camera.getWorldDirection(rayDir);
+                this._getActiveCamera().getWorldDirection(rayDir);
               }
             }
 
@@ -325,6 +329,12 @@ export class InputManager {
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   _findInteractable(obj) {
+    // Check hierarchy visibility
+    let check = obj;
+    while (check) {
+      if (check.visible === false) return null;
+      check = check.parent;
+    }
     let cur = obj;
     while (cur) {
       if (this.interactables.includes(cur)) return cur;

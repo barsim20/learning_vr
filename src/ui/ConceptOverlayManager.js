@@ -2,7 +2,7 @@
  * ConceptOverlayManager.js
  * Manages the In-FOV Learning Explanations overlay system:
  * 1. Darkening Backdrop Mesh that dims out the surrounding 3D environment.
- * 2. High-Contrast Concept Explanation Card with icon, bold title, and kid-friendly explanation.
+ * 2. High-Contrast Concept Explanation Card with icon, bold title, scenario context, and kid-friendly explanation.
  * 3. Interactive "I UNDERSTAND 🧠" button that requires explicit gaze/pinch acknowledgment.
  * 4. Persistent 3D "🧠" Badges anchored near objects for re-triggering explanations on demand.
  */
@@ -48,66 +48,82 @@ export class ConceptOverlayManager {
     this.scene.add(this.overlayGroup);
 
     // 1. Darkening Backdrop Mesh (dims environment)
-    const backdropGeo = new THREE.PlaneGeometry(6, 4);
+    const backdropGeo = new THREE.PlaneGeometry(8, 6);
     const backdropMat = new THREE.MeshBasicMaterial({
-      color: 0x050308,
+      color: 0x030205,
       transparent: true,
-      opacity: 0.88,
+      opacity: 0.90,
       depthTest: false,
+      side: THREE.DoubleSide,
     });
     this.backdrop = new THREE.Mesh(backdropGeo, backdropMat);
     this.backdrop.renderOrder = 990;
     this.overlayGroup.add(this.backdrop);
 
-    // Backdrop click-to-prevent-pass-through
-    this.backdrop.userData.onSelect = () => {};
-    this.input.register(this.backdrop);
-
     // 2. Main Concept Card Mesh (Canvas texture)
     this.cardCanvas = document.createElement('canvas');
-    this.cardCanvas.width  = 640;
-    this.cardCanvas.height = 420;
+    this.cardCanvas.width  = 720;
+    this.cardCanvas.height = 460;
     this.cardCtx = this.cardCanvas.getContext('2d');
 
     this.cardTexture = new THREE.CanvasTexture(this.cardCanvas);
     this.cardTexture.minFilter = THREE.LinearFilter;
-    const cardGeo = new THREE.PlaneGeometry(1.2, 0.78);
+    const cardGeo = new THREE.PlaneGeometry(1.3, 0.83);
     const cardMat = new THREE.MeshBasicMaterial({
       map: this.cardTexture,
       transparent: true,
       depthTest: false,
+      side: THREE.DoubleSide,
     });
     this.cardMesh = new THREE.Mesh(cardGeo, cardMat);
-    this.cardMesh.position.set(0, 0.08, 0.01);
+    this.cardMesh.position.set(0, 0.08, 0.02);
     this.cardMesh.renderOrder = 991;
     this.overlayGroup.add(this.cardMesh);
 
     // 3. Interactive "I UNDERSTAND 🧠" Acknowledgment Button Mesh
     this.btnCanvas = document.createElement('canvas');
-    this.btnCanvas.width  = 360;
-    this.btnCanvas.height = 90;
+    this.btnCanvas.width  = 400;
+    this.btnCanvas.height = 100;
     this.btnCtx = this.btnCanvas.getContext('2d');
 
     this.btnTexture = new THREE.CanvasTexture(this.btnCanvas);
-    const btnGeo = new THREE.PlaneGeometry(0.65, 0.16);
+    const btnGeo = new THREE.PlaneGeometry(0.72, 0.18);
     this.btnMat = new THREE.MeshBasicMaterial({
       map: this.btnTexture,
       transparent: true,
       depthTest: false,
+      side: THREE.DoubleSide,
     });
     this.btnMesh = new THREE.Mesh(btnGeo, this.btnMat);
-    this.btnMesh.position.set(0, -0.26, 0.02);
+    this.btnMesh.position.set(0, -0.32, 0.05);
     this.btnMesh.renderOrder = 992;
     this.overlayGroup.add(this.btnMesh);
 
+    // Enlarged invisible 3D hit box volume for easy gaze/pinch selection
+    const btnHitBox = new THREE.Mesh(
+      new THREE.BoxGeometry(1.0, 0.35, 0.3),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    btnHitBox.position.set(0, -0.32, 0.05);
+    this.overlayGroup.add(btnHitBox);
+    this.btnHitBox = btnHitBox;
+
     // Button interactions
-    this.btnMesh.userData.onHover = (_, isHover) => {
+    const onHover = (_, isHover) => {
       this._drawButton(isHover);
+      this.btnMesh.scale.setScalar(isHover ? 1.06 : 1.0);
     };
-    this.btnMesh.userData.onSelect = () => {
+    const onSelect = () => {
       this._onAcknowledge();
     };
+
+    this.btnMesh.userData.onHover  = onHover;
+    this.btnMesh.userData.onSelect = onSelect;
+    btnHitBox.userData.onHover     = onHover;
+    btnHitBox.userData.onSelect    = onSelect;
+
     this.input.register(this.btnMesh);
+    this.input.register(btnHitBox);
   }
 
   // ── Card Rendering ────────────────────────────────────────────────────────
@@ -120,7 +136,7 @@ export class ConceptOverlayManager {
     ctx.clearRect(0, 0, w, h);
 
     // Card background panel (rounded rect with gold border)
-    ctx.fillStyle = 'rgba(25, 14, 8, 0.95)';
+    ctx.fillStyle = 'rgba(25, 14, 8, 0.96)';
     roundRect(ctx, 10, 10, w - 20, h - 20, 24);
     ctx.fill();
 
@@ -129,51 +145,52 @@ export class ConceptOverlayManager {
     ctx.stroke();
 
     // Top Header Badge
-    ctx.fillStyle = 'rgba(255, 209, 102, 0.15)';
-    roundRect(ctx, 30, 24, w - 60, 48, 14);
+    ctx.fillStyle = 'rgba(255, 209, 102, 0.18)';
+    roundRect(ctx, 30, 22, w - 60, 46, 14);
     ctx.fill();
 
     ctx.font = 'bold 24px Arial, sans-serif';
     ctx.fillStyle = '#ffd166';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('🧠 BRAIN SCIENCE FACT', w / 2, 48);
+    ctx.fillText('🧠 BRAIN SCIENCE FACT', w / 2, 45);
 
     // Large Icon
-    ctx.font = '54px sans-serif';
-    ctx.fillText(conceptData.icon, w / 2, 120);
+    ctx.font = '50px sans-serif';
+    ctx.fillText(conceptData.icon, w / 2, 112);
 
     // Concept Title (Bold, kid-friendly)
-    ctx.font = 'bold 28px Arial, sans-serif';
+    ctx.font = 'bold 30px Arial, sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(conceptData.concept, w / 2, 175);
+    ctx.fillText(conceptData.concept, w / 2, 168);
 
     // Subtitle divider line
     ctx.beginPath();
-    ctx.moveTo(80, 200);
-    ctx.lineTo(w - 80, 200);
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.moveTo(80, 192);
+    ctx.lineTo(w - 80, 192);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // 1. Scenario Context Line (Highlighted Gold)
-    let currentY = 215;
-    if (conceptData.scenario) {
-      ctx.font = 'italic bold 20px Arial, sans-serif';
-      ctx.fillStyle = '#ffd166';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
+    let currentY = 208;
 
-      const scenarioLines = wrapText(ctx, `🎮 ${conceptData.scenario}`, w - 80);
-      scenarioLines.forEach((line) => {
-        ctx.fillText(line, w / 2, currentY);
-        currentY += 26;
-      });
-      currentY += 6; // gap before science explanation
+    // 1. Scenario Context Line (Highlighted in Cyan/Gold box)
+    if (conceptData.scenario) {
+      ctx.fillStyle = 'rgba(6, 214, 160, 0.12)';
+      roundRect(ctx, 40, currentY, w - 80, 52, 10);
+      ctx.fill();
+
+      ctx.font = 'bold 19px Arial, sans-serif';
+      ctx.fillStyle = '#06d6a0';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`🎮 SCENARIO: ${conceptData.scenario}`, w / 2, currentY + 26);
+
+      currentY += 62;
     }
 
-    // 2. Memory Science Explanation Sentence (White/Light Gray)
-    ctx.font = '21px Arial, sans-serif';
+    // 2. Memory Science Explanation Sentence (Clear White Text)
+    ctx.font = '22px Arial, sans-serif';
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
@@ -197,15 +214,15 @@ export class ConceptOverlayManager {
 
     // Rounded button background
     ctx.fillStyle = isHover ? '#06d6a0' : '#04b384';
-    roundRect(ctx, 4, 4, w - 8, h - 8, 20);
+    roundRect(ctx, 6, 6, w - 12, h - 12, 22);
     ctx.fill();
 
-    ctx.lineWidth = isHover ? 5 : 3;
-    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = isHover ? 6 : 4;
+    ctx.strokeStyle = isHover ? '#ffd166' : '#ffffff';
     ctx.stroke();
 
     // Button label
-    ctx.font = 'bold 26px Arial, sans-serif';
+    ctx.font = 'bold 28px Arial, sans-serif';
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -243,8 +260,16 @@ export class ConceptOverlayManager {
     this._badgeOffset  = badgeOffset;
 
     this._renderCardContent(conceptData);
-    this.overlayGroup.visible = true;
 
+    // Position overlay in front of camera immediately
+    if (this.camera) {
+      const offset = new THREE.Vector3(0, 0, -1.2);
+      offset.applyQuaternion(this.camera.quaternion);
+      this.overlayGroup.position.copy(this.camera.position).add(offset);
+      this.overlayGroup.quaternion.copy(this.camera.quaternion);
+    }
+
+    this.overlayGroup.visible = true;
     audioManager.play('chime');
   }
 
@@ -347,16 +372,12 @@ export class ConceptOverlayManager {
   // ── Main Update Loop ──────────────────────────────────────────────────────
 
   update(camera) {
-    // Keep overlay positioned and billboarded 1.2m directly in front of camera
+    // Keep overlay positioned and aligned 1.2m in front of camera
     if (this.overlayGroup.visible) {
-      const camPos = new THREE.Vector3();
-      const camDir = new THREE.Vector3();
-      camera.getWorldPosition(camPos);
-      camera.getWorldDirection(camDir);
-
-      const targetPos = camPos.clone().addScaledVector(camDir, 1.2);
-      this.overlayGroup.position.copy(targetPos);
-      this.overlayGroup.lookAt(camPos);
+      const offset = new THREE.Vector3(0, 0, -1.2);
+      offset.applyQuaternion(camera.quaternion);
+      this.overlayGroup.position.copy(camera.position).add(offset);
+      this.overlayGroup.quaternion.copy(camera.quaternion);
     }
 
     // Billboard persistent badges to face camera
