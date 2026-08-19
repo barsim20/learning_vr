@@ -1,7 +1,7 @@
 /**
  * main.js
  * BrainDonald's — entry point.
- * Sets up Three.js renderer, WebXR, scene, UI overlays, and the game loop.
+ * Sets up Three.js renderer, WebXR, scene, UI overlays, Teleportation, and the game loop.
  */
 
 import * as THREE from 'three';
@@ -15,6 +15,7 @@ import { StorageAisle }   from './environment/StorageAisle.js';
 import { DeliveryStation } from './environment/DeliveryStation.js';
 
 import { OrderSystem }    from './gameplay/OrderSystem.js';
+import { TeleportSystem } from './gameplay/TeleportSystem.js';
 import { gameState, STATE } from './core/GameState.js';
 
 import { StartScreen }    from './ui/StartScreen.js';
@@ -73,6 +74,9 @@ const deliveryStation = new DeliveryStation(
 
 const storageAisle = new StorageAisle(scene, input);
 
+// Controllerless Locomotion / Teleport System
+const teleportSystem = new TeleportSystem(scene, camera, input, vrSession);
+
 // ── Gameplay ─────────────────────────────────────────────────────────────────
 
 const npcPosition = new THREE.Vector3(0, 0, 0.8); // Customer stands in front of the counter
@@ -118,6 +122,7 @@ renderer.setAnimationLoop((timestamp, frame) => {
 
   vrSession.update();
   input.update();
+  teleportSystem.update(dt);
   orderSystem.update(activeCamera, dt);
   storageAisle.update(activeCamera, dt);
   startScreen.update(activeCamera);

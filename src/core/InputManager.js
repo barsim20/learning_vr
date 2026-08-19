@@ -1,12 +1,18 @@
 /**
  * InputManager.js
- * Unified input: VR controller raycasting + desktop mouse.
+ * Multi-modal Input Manager:
+ *  - Gaze Dwell (hands-free head tracking with progress reticle)
+ *  - WebXR Hand Pinch (gesture control)
+ *  - VR Controller Raycasting
+ *  - Desktop Mouse Click
  *
  * Emits: 'select', 'hover' events on interactive objects.
- * Objects opt-in by being added to InputManager.interactables.
  */
 
 import * as THREE from 'three';
+import { GazeReticle } from '../ui/GazeReticle.js';
+
+const DWELL_TIME_MS = 1000; // 1 second continuous gaze triggers selection
 
 export class InputManager {
   /**
@@ -24,7 +30,16 @@ export class InputManager {
     this._mouse        = new THREE.Vector2();
     this._hovered      = null;
 
-    // VR controller references (set when XR session starts)
+    // Gaze Dwell tracking
+    this.reticle       = new GazeReticle(camera);
+    this._gazeTarget   = null;
+    this._gazeStartTime = 0;
+    this._gazeTriggered = false;
+
+    // Hand tracking state
+    this._pinchingHands = new Set(); // set of inputSource hands currently pinching
+
+    // VR controllers
     this._controllers  = [];
 
     this._setupDesktop();
@@ -53,7 +68,15 @@ export class InputManager {
     return hits.length > 0 ? this._findInteractable(hits[0].object) : null;
   }
 
-  // ── VR (controller) ──────────────────────────────────────────────────────
+  // ── Gaze Raycasting ──────────────────────────────────────────────────────
+
+  _castFromCamera() {
+    this._raycaster.setFromCamera({ x: 0, y: 0 }, this.camera);
+    const hits = this._raycaster.intersectObjects(this.interactables, true);
+    return hits.length > 0 ? this._findInteractable(hits[0].object) : null;
+  }
+
+  // ── VR (controllers & hands) ─────────────────────────────────────────────
 
   _setupVR() {
     const renderer = this.renderer;
@@ -91,21 +114,115 @@ export class InputManager {
     return hits.length > 0 ? this._findInteractable(hits[0].object) : null;
   }
 
-  // ── Hover (called each frame) ─────────────────────────────────────────────
+  // ── WebXR Hand Tracking & Gesture Recognition ───────────────────────────
+
+  _updateHandGestures() {
+    const session = this.renderer.xr.getSession();
+    if (!session || !session.inputSources) return null;
+
+    let handHit = null;
+
+    for (const source of session.inputSources) {
+      if (source.hand) {
+        const indexTip = source.hand.get('index-finger-tip');
+        const thumbTip = source.hand.get('thumb-tip');
+
+        if (indexTip && thumbTip) {
+          const frame = this.renderer.xr.getFrame();
+          const referenceSpace = this.renderer.xr.getReferenceSpace();
+
+          const indexPose = frame?.getJointPose?.(indexTip, referenceSpace);
+          const thumbPose = frame?.getJointPose?.(thumbTip, referenceSpace);
+
+          if (indexPose && thumbPose) {
+            const p1 = indexPose.transform.position;
+            const p2 = thumbPose.transform.position;
+            const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y, p1.z - p2.z);
+
+            const isPinching = dist < 0.025; // 2.5 cm pinch threshold
+            const wasPinching = this._pinchingHands.has(source);
+
+            if (isPinching && !wasPinching) {
+              this._pinchingHands.add(source);
+
+              // Raycast from pinch point
+              const pinchPos = new THREE.Vector3(
+                (p1.x + p2.x) / 2,
+                (p1.y + p2.y) / 2,
+                (p1.z + p2.z) / 2,
+              );
+
+              // Raycast from pinch toward camera direction or front
+              this._raycaster.set(pinchPos, this.camera.getWorldDirection(new THREE.Vector3()));
+              const hits = this._raycaster.intersectObjects(this.interactables, true);
+              if (hits.length > 0) {
+                handHit = this._findInteractable(hits[0].object);
+                if (handHit) this._fireSelect(handHit);
+              }
+            } else if (!isPinching && wasPinching) {
+              this._pinchingHands.delete(source);
+            }
+          }
+        }
+      }
+    }
+
+    return handHit;
+  }
+
+  // ── Main Update (called each frame) ──────────────────────────────────────
 
   update() {
     let hit = null;
+    const now = performance.now();
 
+    // 1. Check Controllers & Hand Pinch
     if (this.renderer.xr.isPresenting) {
-      // VR: use first controller that hits something
       for (const ctrl of this._controllers) {
         hit = this._castFromController(ctrl);
         if (hit) break;
       }
+
+      const handHit = this._updateHandGestures();
+      if (!hit && handHit) hit = handHit;
+    }
+
+    // 2. Gaze Dwell (Head Tracking)
+    const gazeHit = this._castFromCamera();
+    if (!hit && gazeHit) {
+      hit = gazeHit;
+    }
+
+    // Process Gaze Dwell Progress & Auto-Select
+    if (gazeHit) {
+      if (this._gazeTarget !== gazeHit) {
+        this._gazeTarget = gazeHit;
+        this._gazeStartTime = now;
+        this._gazeTriggered = false;
+      } else if (!this._gazeTriggered) {
+        const elapsed = now - this._gazeStartTime;
+        const progress = Math.min(elapsed / DWELL_TIME_MS, 1.0);
+
+        this.reticle.setProgress(progress, true);
+
+        if (progress >= 1.0) {
+          this._gazeTriggered = true;
+          this._fireSelect(gazeHit);
+          this.reticle.setProgress(0, true);
+        }
+      }
     } else {
+      this._gazeTarget = null;
+      this._gazeTriggered = false;
+      this.reticle.setProgress(0, false);
+    }
+
+    // 3. Process Desktop Hover
+    if (!this.renderer.xr.isPresenting && !hit) {
       hit = this._castFromMouse();
     }
 
+    // Fire Hover events
     if (hit !== this._hovered) {
       if (this._hovered) this._fireHover(this._hovered, false);
       if (hit)           this._fireHover(hit, true);
@@ -115,7 +232,6 @@ export class InputManager {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  /** Walk up the hierarchy to find the registered interactable ancestor */
   _findInteractable(obj) {
     let cur = obj;
     while (cur) {
