@@ -20,6 +20,7 @@ import { gameState, STATE } from './core/GameState.js';
 
 import { StartScreen }    from './ui/StartScreen.js';
 import { ObjectiveHUD }   from './ui/ObjectiveHUD.js';
+import { conceptOverlayManager } from './ui/ConceptOverlayManager.js';
 
 // ── Renderer ────────────────────────────────────────────────────────────────
 
@@ -57,9 +58,10 @@ vrSession.init().then(() => {
   document.getElementById('status').textContent = '';
 });
 
-// ── Input ────────────────────────────────────────────────────────────────────
+// ── Input & Concept Overlays ──────────────────────────────────────────────────
 
 const input = new InputManager(renderer, scene, camera);
+conceptOverlayManager.init(scene, camera, input);
 
 // ── Environment ──────────────────────────────────────────────────────────────
 
@@ -127,6 +129,7 @@ renderer.setAnimationLoop((timestamp, frame) => {
   storageAisle.update(activeCamera, dt);
   startScreen.update(activeCamera);
   objectiveHUD.update(activeCamera);
+  conceptOverlayManager.update(activeCamera);
 
   // Update carried item if any
   if (gameState.carriedItem && gameState._carriedItemRef) {

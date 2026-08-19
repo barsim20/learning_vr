@@ -10,6 +10,7 @@ import { voiceManager } from '../core/VoiceManager.js';
 import { audioManager } from '../core/AudioManager.js';
 import { Scoreboard } from '../ui/Scoreboard.js';
 import { createTextLabel } from '../utils/TextLabel.js';
+import { conceptOverlayManager } from '../ui/ConceptOverlayManager.js';
 
 export class DeliveryStation {
   /**
@@ -113,11 +114,13 @@ export class DeliveryStation {
       voiceManager.play('deliver_success');
       audioManager.play('chime');
       this._celebrate();
+      conceptOverlayManager.trigger('deliver_successful_recall', this.group, new THREE.Vector3(0, 1.8, 0));
     } else {
       gameState.breakStreak();
       voiceManager.play('deliver_wrong');
       audioManager.play('buzz');
       this._wrongFlash();
+      conceptOverlayManager.trigger('deliver_wrong_forgetting', this.group, new THREE.Vector3(0, 1.8, 0));
     }
 
     // Brief pause then next order

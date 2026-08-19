@@ -37,7 +37,21 @@ class GameState {
     /** The bin the player is currently interacting with */
     this.activeBin     = null;   // StorageBin instance
 
+    /** Track concept explanations shown to player */
+    this.seenConcepts  = {};     // key -> boolean
+
     this._listeners = {};
+  }
+
+  /** Check if a concept overlay should automatically trigger (first time only) */
+  shouldTriggerConcept(key) {
+    return !this.seenConcepts[key];
+  }
+
+  /** Record that a concept explanation overlay has been shown */
+  recordConceptShown(key) {
+    this.seenConcepts[key] = true;
+    this._emit('conceptShown', { key });
   }
 
   /** Transition to a new state and fire listeners. */

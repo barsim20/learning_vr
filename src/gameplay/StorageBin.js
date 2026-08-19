@@ -10,6 +10,7 @@ import { CATEGORY_COLORS } from '../content/knowledgeDatabase.js';
 import { MemoryPuzzle } from './MemoryPuzzle.js';
 import { KnowledgeItem } from './KnowledgeItem.js';
 import { gameState, STATE } from '../core/GameState.js';
+import { conceptOverlayManager } from '../ui/ConceptOverlayManager.js';
 
 export class StorageBin {
   /**
@@ -183,6 +184,9 @@ export class StorageBin {
       this._spawnItem();
       return;
     }
+
+    // Trigger Working Memory concept overlay
+    conceptOverlayManager.trigger('bin_working_memory', this.group, new THREE.Vector3(0, 0.7, 0));
 
     // Start puzzle
     gameState.transition(STATE.PUZZLE);

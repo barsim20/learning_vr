@@ -9,6 +9,8 @@ import * as THREE from 'three';
 import { createTextLabel } from '../utils/TextLabel.js';
 import { audioManager } from '../core/AudioManager.js';
 
+import { conceptOverlayManager } from '../ui/ConceptOverlayManager.js';
+
 const TELEPORT_NODES = [
   { id: 'counter',  label: '📍 COUNTER',   target: new THREE.Vector3(0, 1.6, -2.0),    floorPos: new THREE.Vector3(0, 0.02, -2.0),    color: 0xe63946 },
   { id: 'math',     label: '🟡 MATH AISLE', target: new THREE.Vector3(-5, 1.6, -5.5),  floorPos: new THREE.Vector3(-5, 0.02, -5.5),  color: 0xffd166 },
@@ -94,6 +96,9 @@ export class TeleportSystem {
       };
       const onSelect = () => {
         this.teleportTo(data.target);
+        if (['math', 'food', 'sports'].includes(data.id)) {
+          conceptOverlayManager.trigger('storage_search', nodeGroup, new THREE.Vector3(0, 1.2, 0));
+        }
       };
 
       disc.userData.onHover        = onHover;

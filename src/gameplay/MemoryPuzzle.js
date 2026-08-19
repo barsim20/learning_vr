@@ -13,6 +13,7 @@
 import * as THREE from 'three';
 import { audioManager } from '../core/AudioManager.js';
 import { voiceManager } from '../core/VoiceManager.js';
+import { conceptOverlayManager } from '../ui/ConceptOverlayManager.js';
 
 const SEQUENCE_LENGTH_BY_COUNT = [5, 4, 3, 2, 1]; // indexed by retrievalCount (clamped to array length)
 const SHOW_INTERVAL_MS   = 600;  // ms between each square lighting up during show phase
@@ -194,6 +195,19 @@ export class MemoryPuzzle {
     audioManager.play('chime');
     voiceManager.play('puzzle_success');
 
+    // Trigger concept overlay based on retrieval milestone
+    const now = performance.now();
+    const timeSinceLast = this._lastRetrievalTime ? (now - this._lastRetrievalTime) : 0;
+    this._lastRetrievalTime = now;
+
+    if (timeSinceLast > 45000 && timeSinceLast < FORGET_TIMEOUT_MS) {
+      conceptOverlayManager.trigger('puzzle_spacing', this.group, new THREE.Vector3(0, 0.5, 0));
+    } else if (this.retrievalCount === 0) {
+      conceptOverlayManager.trigger('puzzle_effortful_retrieval', this.group, new THREE.Vector3(0, 0.5, 0));
+    } else {
+      conceptOverlayManager.trigger('puzzle_ltp', this.group, new THREE.Vector3(0, 0.5, 0));
+    }
+
     // Update retrieval tracking
     this.retrievalCount++;
     this._resetForgetTimer();
@@ -209,6 +223,9 @@ export class MemoryPuzzle {
   _resetForgetTimer() {
     clearTimeout(this._forgetTimer);
     this._forgetTimer = setTimeout(() => {
+      if (this.retrievalCount > 0) {
+        conceptOverlayManager.trigger('puzzle_forgetting', this.group, new THREE.Vector3(0, 0.5, 0));
+      }
       this.retrievalCount = 0; // forgotten — reset difficulty
     }, FORGET_TIMEOUT_MS);
   }

@@ -9,6 +9,8 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { SpeechBubble } from '../ui/SpeechBubble.js';
 import { voiceManager } from '../core/VoiceManager.js';
 
+import { conceptOverlayManager } from '../ui/ConceptOverlayManager.js';
+
 export class CustomerNPC {
   /**
    * @param {THREE.Scene} scene
@@ -66,6 +68,7 @@ export class CustomerNPC {
     this.group.visible = true;
     this._bubble.show(`"${orderText}"`);
     voiceManager.play('order', category);
+    conceptOverlayManager.trigger('customer_order', this.group, new THREE.Vector3(0, 2.4, 0));
   }
 
   hide() {
