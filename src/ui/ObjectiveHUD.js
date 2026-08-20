@@ -6,6 +6,7 @@
 
 import * as THREE from 'three';
 import { gameState, STATE } from '../core/GameState.js';
+import { conceptOverlayManager } from './ConceptOverlayManager.js';
 
 export class ObjectiveHUD {
   /**
@@ -125,8 +126,14 @@ export class ObjectiveHUD {
 
   /** Position HUD smoothly at top-center of camera FOV */
   update(camera) {
-    // Vector offset in front of camera: 0.65m up/forward relative to eye height
-    const offset = new THREE.Vector3(0, 0.45, -1.2);
+    if (conceptOverlayManager.overlayGroup && conceptOverlayManager.overlayGroup.visible) {
+      this.group.visible = false;
+      return;
+    }
+    this.group.visible = true;
+
+    // Vector offset in front of camera: 0.55m up/forward relative to eye height
+    const offset = new THREE.Vector3(0, 0.55, -1.2);
     offset.applyQuaternion(camera.quaternion);
     this.group.position.copy(camera.position).add(offset);
     this.group.quaternion.copy(camera.quaternion);

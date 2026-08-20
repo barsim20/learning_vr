@@ -61,14 +61,6 @@ export class ConceptOverlayManager {
     this.backdrop.renderOrder = 990;
     this.overlayGroup.add(this.backdrop);
 
-    // Backdrop absorbs background clicks to prevent interacting with objects behind overlay
-    this.backdrop.userData.onSelect = () => {
-      // Optional subtle bounce/flash on acknowledge button to guide the user
-      this._drawButton(true);
-      setTimeout(() => this._drawButton(false), 200);
-    };
-    this.backdrop.userData.onHover = () => {};
-
     // 2. Main Concept Card Mesh (Canvas texture)
     this.cardCanvas = document.createElement('canvas');
     this.cardCanvas.width  = 720;
@@ -110,29 +102,34 @@ export class ConceptOverlayManager {
 
     // Generous transparent raycastable hit volume box for effortless gaze/pinch selection
     const btnHitBox = new THREE.Mesh(
-      new THREE.BoxGeometry(1.1, 0.4, 0.25),
+      new THREE.BoxGeometry(1.2, 0.45, 0.3),
       new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
     );
     btnHitBox.position.set(0, -0.32, 0.04);
     this.overlayGroup.add(btnHitBox);
     this.btnHitBox = btnHitBox;
 
-    // Button interactions
-    const onHover = (_, isHover) => {
+    // Button interactions — acknowledge on selecting any part of the modal
+    const onAcknowledge = () => {
+      this._onAcknowledge();
+    };
+    const onButtonHover = (_, isHover) => {
       this._drawButton(isHover);
       this.btnMesh.scale.setScalar(isHover ? 1.06 : 1.0);
     };
-    const onSelect = () => {
-      this._onAcknowledge();
-    };
 
-    this.btnMesh.userData.onHover  = onHover;
-    this.btnMesh.userData.onSelect = onSelect;
-    btnHitBox.userData.onHover     = onHover;
-    btnHitBox.userData.onSelect    = onSelect;
+    this.btnMesh.userData.onHover   = onButtonHover;
+    this.btnMesh.userData.onSelect  = onAcknowledge;
+    btnHitBox.userData.onHover      = onButtonHover;
+    btnHitBox.userData.onSelect     = onAcknowledge;
+    this.cardMesh.userData.onHover  = onButtonHover;
+    this.cardMesh.userData.onSelect = onAcknowledge;
+    this.backdrop.userData.onHover  = () => {};
+    this.backdrop.userData.onSelect = onAcknowledge;
 
     this.input.register(this.btnMesh);
     this.input.register(btnHitBox);
+    this.input.register(this.cardMesh);
     this.input.register(this.backdrop);
   }
 
@@ -281,7 +278,7 @@ export class ConceptOverlayManager {
 
     this.overlayGroup.visible = true;
     if (this.input) {
-      this.input.setModal([this.btnMesh, this.btnHitBox, this.backdrop]);
+      this.input.setModal([this.btnMesh, this.btnHitBox, this.cardMesh, this.backdrop]);
     }
     audioManager.play('conceptOpen');
   }

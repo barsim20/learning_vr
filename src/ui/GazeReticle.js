@@ -9,9 +9,11 @@ import * as THREE from 'three';
 export class GazeReticle {
   /**
    * @param {THREE.Camera} camera
+   * @param {THREE.Scene} [scene]
    */
-  constructor(camera) {
+  constructor(camera, scene = null) {
     this.camera = camera;
+    this.scene  = scene;
     this.group  = new THREE.Group();
 
     // Canvas texture for dynamic progress ring
@@ -29,17 +31,30 @@ export class GazeReticle {
         depthWrite: false,
       })
     );
+    this._sprite.renderOrder = 9999;
     this._sprite.scale.set(0.04, 0.04, 1);
     this.group.add(this._sprite);
 
-    // Position reticle 1 meter in front of camera
-    this.group.position.set(0, 0, -1);
-    camera.add(this.group);
+    if (scene) {
+      scene.add(this.group);
+    } else {
+      camera.add(this.group);
+      this.group.position.set(0, 0, -1);
+    }
 
     this._progress = 0; // 0.0 to 1.0
     this._isHovering = false;
 
     this.draw(0, false);
+  }
+
+  /** Update reticle position in front of active camera in VR or desktop */
+  update(camera) {
+    if (!camera) return;
+    const offset = new THREE.Vector3(0, 0, -1.0);
+    offset.applyQuaternion(camera.quaternion);
+    this.group.position.copy(camera.position).add(offset);
+    this.group.quaternion.copy(camera.quaternion);
   }
 
   /**

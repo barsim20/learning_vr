@@ -35,7 +35,7 @@ export class InputManager {
     this._hovered      = null;
 
     // Gaze Dwell tracking
-    this.reticle       = new GazeReticle(camera);
+    this.reticle       = new GazeReticle(camera, scene);
     this._gazeTarget   = null;
     this._gazeStartTime = 0;
     this._gazeTriggered = false;
@@ -108,7 +108,13 @@ export class InputManager {
   // ── Gaze Raycasting ──────────────────────────────────────────────────────
 
   _castFromCamera() {
-    this._raycaster.setFromCamera({ x: 0, y: 0 }, this._getActiveCamera());
+    const cam = this._getActiveCamera();
+    const origin = new THREE.Vector3();
+    const direction = new THREE.Vector3();
+    cam.getWorldPosition(origin);
+    cam.getWorldDirection(direction);
+
+    this._raycaster.set(origin, direction);
     const hits = this._raycaster.intersectObjects(this._getActiveInteractables(), true);
     return hits.length > 0 ? this._findInteractable(hits[0].object) : null;
   }
@@ -121,10 +127,12 @@ export class InputManager {
 
     for (let i = 0; i < 2; i++) {
       const ctrl = renderer.xr.getController(i);
-      ctrl.addEventListener('selectstart', () => {
+      const onCtrlSelect = () => {
         const hit = this._castFromController(ctrl);
         if (hit) this._fireSelect(hit);
-      });
+      };
+      ctrl.addEventListener('selectstart', onCtrlSelect);
+      ctrl.addEventListener('select', onCtrlSelect);
       parentContainer.add(ctrl);
 
       // Visual ray line
@@ -332,6 +340,12 @@ export class InputManager {
   update() {
     let hit = null;
     const now = performance.now();
+    const activeCamera = this._getActiveCamera();
+
+    // Update Gaze Reticle tracking
+    if (this.reticle) {
+      this.reticle.update(activeCamera);
+    }
 
     // 1. Check Controllers & Hand Pinch
     if (this.renderer.xr.isPresenting) {
