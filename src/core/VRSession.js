@@ -62,7 +62,7 @@ export class VRSession {
 
       if (this.cameraRig) {
         this.cameraRig.position.set(0, 0, -2.0); // Store Manager position behind counter
-        this.cameraRig.rotation.set(0, 0, 0); // Keep identity rotation for 1:1 natural physical head tracking
+        this.cameraRig.rotation.set(0, Math.PI, 0); // Face forward towards counter and customer (+Z)
         this.cameraRig.updateMatrixWorld(true);
         this.camera.position.set(0, 0, 0);
         this.camera.rotation.set(0, 0, 0);

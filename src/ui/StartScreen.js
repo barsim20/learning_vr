@@ -10,6 +10,8 @@ import { audioManager } from '../core/AudioManager.js';
 import { voiceManager } from '../core/VoiceManager.js';
 
 const _startCamPos = new THREE.Vector3();
+const _startCamQuat = new THREE.Quaternion();
+const _startCamOffset = new THREE.Vector3();
 
 export class StartScreen {
   /**
@@ -23,8 +25,8 @@ export class StartScreen {
     this.onStart = onStart;
 
     this.group = new THREE.Group();
-    // Position directly in front of spawn position behind counter (x=0, y=1.55, z=-1.2)
-    this.group.position.set(0, 1.55, -1.2);
+    // Default position directly in front of spawn position behind counter (x=0, y=1.55, z=-0.9)
+    this.group.position.set(0, 1.55, -0.9);
     scene.add(this.group);
 
     this._canvas  = document.createElement('canvas');
@@ -44,11 +46,10 @@ export class StartScreen {
     // 3D Panel background
     const panelMesh = new THREE.Mesh(
       new THREE.PlaneGeometry(1.2, 0.75),
-      new THREE.MeshStandardMaterial({
+      new THREE.MeshBasicMaterial({
         map: this._texture,
         transparent: true,
         side: THREE.DoubleSide,
-        roughness: 0.3,
       }),
     );
     this.group.add(panelMesh);
@@ -202,7 +203,11 @@ export class StartScreen {
   update(camera) {
     if (!this.group.visible || !camera) return;
     camera.getWorldPosition(_startCamPos);
-    this.group.lookAt(_startCamPos);
+    camera.getWorldQuaternion(_startCamQuat);
+    // Keep start screen positioned and oriented 1.05m in front of camera
+    _startCamOffset.set(0, -0.05, -1.05).applyQuaternion(_startCamQuat);
+    this.group.position.copy(_startCamPos).add(_startCamOffset);
+    this.group.quaternion.copy(_startCamQuat);
   }
 
   _roundRect(ctx, x, y, w, h, r) {

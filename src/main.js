@@ -50,7 +50,7 @@ scene.fog = new THREE.Fog(0x1a0a00, 12, 22);
 
 const cameraRig = new THREE.Group();
 cameraRig.position.set(0, 0, -2.0); // Store Manager position behind counter
-cameraRig.rotation.set(0, 0, 0); // Keep identity rotation so WebXR head tracking is 1:1 and natural
+cameraRig.rotation.set(0, Math.PI, 0); // Face forward towards counter and customer (+Z)
 scene.add(cameraRig);
 cameraRig.updateMatrixWorld(true);
 

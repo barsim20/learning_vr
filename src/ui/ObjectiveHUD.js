@@ -133,7 +133,7 @@ export class ObjectiveHUD {
   /** Position HUD smoothly at top-center of camera FOV */
   update(camera) {
     if (!camera) return;
-    if (conceptOverlayManager.overlayGroup && conceptOverlayManager.overlayGroup.visible) {
+    if (gameState.isIn(STATE.INIT) || (conceptOverlayManager.overlayGroup && conceptOverlayManager.overlayGroup.visible)) {
       this.group.visible = false;
       return;
     }

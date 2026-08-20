@@ -139,15 +139,26 @@ export class TeleportSystem {
     const isVR = this.vrSession && this.vrSession.presenting;
 
     if (isVR && this.cameraRig) {
-      // In WebXR: smoothly lerp cameraRig position (keep rotation strictly at (0,0,0) for natural 1:1 physical tracking)
+      // In WebXR: smoothly lerp cameraRig position and yaw rotation towards lookTarget
       const startRigPos = this.cameraRig.position.clone();
       const targetRigPos = data.vrRigPos;
+      const startYaw = this.cameraRig.rotation.y;
+      const lookTarget = data.lookTarget || new THREE.Vector3(data.vrRigPos.x, 1.4, data.vrRigPos.z + 2.0);
+      const dir = new THREE.Vector3().subVectors(lookTarget, data.vrRigPos);
+      let targetYaw = Math.atan2(-dir.x, -dir.z);
+
+      // Shortest angle interpolation for smooth yaw transition
+      let diff = (targetYaw - startYaw) % (Math.PI * 2);
+      if (diff < -Math.PI) diff += Math.PI * 2;
+      if (diff > Math.PI) diff -= Math.PI * 2;
+      targetYaw = startYaw + diff;
 
       const tickVR = () => {
         const t = Math.min((performance.now() - start) / duration, 1);
         const easeT = t * (2 - t); // ease-out quad
 
         this.cameraRig.position.lerpVectors(startRigPos, targetRigPos, easeT);
+        this.cameraRig.rotation.y = startYaw + (targetYaw - startYaw) * easeT;
         this.cameraRig.updateMatrixWorld(true);
 
         if (t < 1) {
