@@ -98,9 +98,10 @@ export class StorageAisle {
 
     // ── 4. Category Header Banner & Label ────────────────────────────────
     const topPlankY = BIN_START_Y + (totalBins - 1) * BIN_SPACING_Y + 0.30;
+    const headerMat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.35, roughness: 0.4 });
     const header = new THREE.Mesh(
       new THREE.BoxGeometry(1.16, 0.22, 0.06),
-      new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.35, roughness: 0.4 }),
+      headerMat,
     );
     header.position.set(x, topPlankY + 0.16, shelfZ);
     this.group.add(header);
@@ -114,6 +115,26 @@ export class StorageAisle {
     });
     catLabel.position.set(x, topPlankY + 0.42, shelfZ + 0.04);
     this.group.add(catLabel);
+
+    // Category header interactive hover & click
+    const onHeaderHover = (_, isHover) => {
+      headerMat.emissiveIntensity = isHover ? 0.9 : 0.35;
+    };
+    const onHeaderSelect = () => {
+      // Find matching active bin in this aisle if any
+      const matchingBin = this.bins.find(b => b.itemData.category === category && gameState.activeOrder && b.itemData.id === gameState.activeOrder.id);
+      if (matchingBin) {
+        matchingBin._onDoorClick();
+      }
+    };
+
+    header.userData.onHover   = onHeaderHover;
+    header.userData.onSelect  = onHeaderSelect;
+    catLabel.userData.onHover = onHeaderHover;
+    catLabel.userData.onSelect = onHeaderSelect;
+
+    this.input.register(header);
+    this.input.register(catLabel);
 
     // ── 5. Storage Bins (Sitting directly on top of each shelf plank) ─────
     items.forEach((itemData, idx) => {

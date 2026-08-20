@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "xr-learn-learning",
     "public": "dist",
     "ignore": [
       "firebase.json",

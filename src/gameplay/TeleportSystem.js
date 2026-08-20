@@ -11,12 +11,12 @@ import { audioManager } from '../core/AudioManager.js';
 
 import { conceptOverlayManager } from '../ui/ConceptOverlayManager.js';
 
-const TELEPORT_NODES = [
-  { id: 'counter',  label: '📍 COUNTER',   target: new THREE.Vector3(0, 1.6, -2.0),    vrRigPos: new THREE.Vector3(0, 0, -2.0),    floorPos: new THREE.Vector3(0, 0.02, -2.0),    color: 0xe63946, lookTarget: new THREE.Vector3(0, 1.4, 0.5) },
-  { id: 'math',     label: '🟡 MATH AISLE', target: new THREE.Vector3(-5, 1.6, -5.5),  vrRigPos: new THREE.Vector3(-5, 0, -5.5),  floorPos: new THREE.Vector3(-5, 0.02, -5.5),  color: 0xffd166, lookTarget: new THREE.Vector3(-5, 1.6, -7.0) },
-  { id: 'food',     label: '🟢 FOOD AISLE', target: new THREE.Vector3(0, 1.6, -5.5),   vrRigPos: new THREE.Vector3(0, 0, -5.5),   floorPos: new THREE.Vector3(0, 0.02, -5.5),   color: 0x06d6a0, lookTarget: new THREE.Vector3(0, 1.6, -7.0) },
-  { id: 'sports',   label: '🔵 SPORTS AISLE',target: new THREE.Vector3(5, 1.6, -5.5),  vrRigPos: new THREE.Vector3(5, 0, -5.5),  floorPos: new THREE.Vector3(5, 0.02, -5.5),   color: 0x118ab2, lookTarget: new THREE.Vector3(5, 1.6, -7.0) },
-  { id: 'deliver',  label: '📬 DELIVERY',   target: new THREE.Vector3(2.2, 1.6, -1.5), vrRigPos: new THREE.Vector3(2.2, 0, -1.5), floorPos: new THREE.Vector3(2.2, 0.02, -1.5), color: 0xffd166, lookTarget: new THREE.Vector3(2.2, 1.2, -0.5) },
+export const TELEPORT_NODES = [
+  { id: 'counter',  label: '📍 COUNTER',     target: new THREE.Vector3(0, 1.6, -2.0),    vrRigPos: new THREE.Vector3(0, 0, -2.0),    floorPos: new THREE.Vector3(0, 0.02, -2.0),    color: 0xe63946, lookTarget: new THREE.Vector3(0, 1.4, 0.5) },
+  { id: 'math',     label: '🟡 MATH AISLE',   target: new THREE.Vector3(-5, 1.6, -5.5),  vrRigPos: new THREE.Vector3(-5, 0, -5.5),  floorPos: new THREE.Vector3(-5, 0.02, -5.5),  color: 0xffd166, lookTarget: new THREE.Vector3(-5, 1.6, -7.0) },
+  { id: 'food',     label: '🟢 FOOD AISLE',   target: new THREE.Vector3(0, 1.6, -5.5),   vrRigPos: new THREE.Vector3(0, 0, -5.5),   floorPos: new THREE.Vector3(0, 0.02, -5.5),   color: 0x06d6a0, lookTarget: new THREE.Vector3(0, 1.6, -7.0) },
+  { id: 'sports',   label: '🔵 SPORTS AISLE', target: new THREE.Vector3(5, 1.6, -5.5),  vrRigPos: new THREE.Vector3(5, 0, -5.5),  floorPos: new THREE.Vector3(5, 0.02, -5.5),   color: 0x118ab2, lookTarget: new THREE.Vector3(5, 1.6, -7.0) },
+  { id: 'deliver',  label: '📬 DELIVERY',     target: new THREE.Vector3(2.2, 1.6, -1.5), vrRigPos: new THREE.Vector3(2.2, 0, -1.5), floorPos: new THREE.Vector3(2.2, 0.02, -1.5), color: 0xffd166, lookTarget: new THREE.Vector3(2.2, 1.2, -0.5) },
 ];
 
 export class TeleportSystem {
@@ -39,6 +39,8 @@ export class TeleportSystem {
 
     this._nodes = [];
     this._isTeleporting = false;
+    this._teleportState = null;
+    this._currentRigPos = new THREE.Vector3(0, 0, -2.0);
 
     this._buildNodes();
   }
@@ -48,7 +50,7 @@ export class TeleportSystem {
       const nodeGroup = new THREE.Group();
       nodeGroup.position.copy(data.floorPos);
 
-      // Floor Solid Disc (Enlarged and filled for easy raycast & pinch targeting)
+      // 1. Floor Solid Disc (flat on floor)
       const discMat = new THREE.MeshStandardMaterial({
         color: data.color,
         emissive: data.color,
@@ -58,54 +60,74 @@ export class TeleportSystem {
       });
 
       const disc = new THREE.Mesh(
-        new THREE.CircleGeometry(0.75, 32),
+        new THREE.CircleGeometry(0.85, 32),
         discMat,
       );
       disc.rotation.x = -Math.PI / 2;
       nodeGroup.add(disc);
 
-      // Center glowing pulse dot
+      // 2. Outer luminous ring
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(0.85, 0.95, 32),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, side: THREE.DoubleSide }),
+      );
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.003;
+      nodeGroup.add(ring);
+
+      // 3. Center glowing pulse dot
       const centerDot = new THREE.Mesh(
-        new THREE.CircleGeometry(0.3, 16),
-        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 }),
+        new THREE.CircleGeometry(0.32, 24),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, side: THREE.DoubleSide }),
       );
       centerDot.rotation.x = -Math.PI / 2;
-      centerDot.position.y = 0.005;
+      centerDot.position.y = 0.006;
       nodeGroup.add(centerDot);
 
-      // Generous double-sided raycastable hit volume cylinder (2.0m diameter, 1.8m height)
+      // 4. Low floor-level hit cylinder (height 0.12m, centered at y=0.06m)
+      // Strictly at floor height so it NEVER blocks shelves or bins behind it
       const hitCylinder = new THREE.Mesh(
-        new THREE.CylinderGeometry(1.0, 1.0, 1.8, 16),
+        new THREE.CylinderGeometry(0.95, 0.95, 0.12, 16),
         new THREE.MeshBasicMaterial({
           transparent: true,
           opacity: 0,
           depthWrite: false,
-          side: THREE.DoubleSide,
         }),
       );
-      hitCylinder.position.y = 0.9;
+      hitCylinder.position.y = 0.06;
       nodeGroup.add(hitCylinder);
 
-      // Floating label above node
+      // 5. Floating label above node
       const label = createTextLabel(data.label, {
         fontSize: 18,
         fontColor: '#ffffff',
         bgColor: 'rgba(20,10,0,0.85)',
-        worldScale: 0.006,
+        worldScale: 0.0055,
       });
-      label.position.set(0, 0.6, 0);
+      label.position.set(0, 0.5, 0);
       nodeGroup.add(label);
 
-      // Interaction registration
-      const onHover = (_, isHover) => {
-        discMat.emissiveIntensity = isHover ? 1.0 : 0.5;
-        centerDot.scale.setScalar(isHover ? 1.3 : 1.0);
+      // Check if player is already standing at this node
+      const isPlayerHere = () => {
+        const checkPos = (this.cameraRig && (this.vrSession?.presenting || this.rendererIsXR()))
+          ? this.cameraRig.position
+          : this.camera.position;
+        const dx = checkPos.x - data.floorPos.x;
+        const dz = checkPos.z - data.floorPos.z;
+        return Math.hypot(dx, dz) < 1.1;
       };
+
+      // Interaction handlers
+      const onHover = (_, isHover) => {
+        if (isPlayerHere()) return;
+        discMat.emissiveIntensity = isHover ? 1.2 : 0.5;
+        centerDot.scale.setScalar(isHover ? 1.3 : 1.0);
+        ring.scale.setScalar(isHover ? 1.08 : 1.0);
+      };
+
       const onSelect = () => {
+        if (isPlayerHere() || this._isTeleporting) return;
         this.teleportToNode(data);
-        if (['math', 'food', 'sports'].includes(data.id)) {
-          conceptOverlayManager.trigger('storage_search', nodeGroup, new THREE.Vector3(0, 1.2, 0));
-        }
       };
 
       disc.userData.onHover         = onHover;
@@ -121,9 +143,14 @@ export class TeleportSystem {
       this.input.register(centerDot);
       this.input.register(hitCylinder);
       this.input.register(label);
+
       this.group.add(nodeGroup);
-      this._nodes.push({ disc, discMat, centerDot, data });
+      this._nodes.push({ disc, discMat, centerDot, ring, hitCylinder, label, nodeGroup, data });
     }
+  }
+
+  rendererIsXR() {
+    return this.input?.renderer?.xr?.isPresenting || false;
   }
 
   /** Teleport player smoothly to target node position */
@@ -133,71 +160,57 @@ export class TeleportSystem {
 
     audioManager.play('teleport');
 
-    const duration = 350; // 350ms smooth transition
+    const duration = 320; // 320ms smooth ease
     const start = performance.now();
-
-    const isVR = this.vrSession && this.vrSession.presenting;
+    const isVR = (this.vrSession && this.vrSession.presenting) || this.rendererIsXR();
 
     if (isVR && this.cameraRig) {
-      // In WebXR: smoothly lerp cameraRig position and yaw rotation towards lookTarget
       const startRigPos = this.cameraRig.position.clone();
-      const targetRigPos = data.vrRigPos;
+      const targetRigPos = data.vrRigPos.clone();
       const startYaw = this.cameraRig.rotation.y;
       const lookTarget = data.lookTarget || new THREE.Vector3(data.vrRigPos.x, 1.4, data.vrRigPos.z + 2.0);
       const dir = new THREE.Vector3().subVectors(lookTarget, data.vrRigPos);
       let targetYaw = Math.atan2(-dir.x, -dir.z);
 
-      // Shortest angle interpolation for smooth yaw transition
+      // Shortest angle difference
       let diff = (targetYaw - startYaw) % (Math.PI * 2);
       if (diff < -Math.PI) diff += Math.PI * 2;
       if (diff > Math.PI) diff -= Math.PI * 2;
       targetYaw = startYaw + diff;
 
-      const tickVR = () => {
-        const t = Math.min((performance.now() - start) / duration, 1);
-        const easeT = t * (2 - t); // ease-out quad
-
-        this.cameraRig.position.lerpVectors(startRigPos, targetRigPos, easeT);
-        this.cameraRig.rotation.y = startYaw + (targetYaw - startYaw) * easeT;
-        this.cameraRig.updateMatrixWorld(true);
-
-        if (t < 1) {
-          requestAnimationFrame(tickVR);
-        } else {
-          this._isTeleporting = false;
-        }
+      this._teleportState = {
+        active: true,
+        start,
+        duration,
+        isVR: true,
+        startPos: startRigPos,
+        targetPos: targetRigPos,
+        startYaw,
+        targetYaw,
+        data,
       };
-      requestAnimationFrame(tickVR);
     } else {
-      // On Desktop: lerp camera position and update OrbitControls target
       const startPos = this.camera.position.clone();
-      const targetPos = data.target;
+      const targetPos = data.target.clone();
+      const lookTarget = data.lookTarget || new THREE.Vector3(targetPos.x, targetPos.y - 0.2, targetPos.z - 2.0);
 
-      const tickDesktop = () => {
-        const t = Math.min((performance.now() - start) / duration, 1);
-        const easeT = t * (2 - t); // ease-out quad
-
-        this.camera.position.lerpVectors(startPos, targetPos, easeT);
-
-        if (this.vrSession && this.vrSession._orbitControls) {
-          const lookTarget = data.lookTarget || new THREE.Vector3(targetPos.x, targetPos.y - 0.2, targetPos.z - 2.0);
-          this.vrSession._orbitControls.target.copy(lookTarget);
-          this.vrSession._orbitControls.update();
-        }
-
-        if (t < 1) {
-          requestAnimationFrame(tickDesktop);
-        } else {
-          this._isTeleporting = false;
-        }
+      this._teleportState = {
+        active: true,
+        start,
+        duration,
+        isVR: false,
+        startPos,
+        targetPos,
+        lookTarget,
+        data,
       };
-      requestAnimationFrame(tickDesktop);
     }
   }
 
-  /** Direct teleport to a vector target (backward compatibility) */
+  /** Direct teleport to a vector target */
   teleportTo(targetPos) {
     const node = TELEPORT_NODES.find(n => n.target.distanceTo(targetPos) < 1.0) || {
+      id: 'custom',
       target: targetPos,
       vrRigPos: new THREE.Vector3(targetPos.x, 0, targetPos.z),
       lookTarget: new THREE.Vector3(targetPos.x, 1.4, targetPos.z - 2.0),
@@ -205,11 +218,63 @@ export class TeleportSystem {
     this.teleportToNode(node);
   }
 
+  /** Frame-driven update inside main animation loop */
   update(dt) {
-    // Gentle pulse animation on teleport nodes
-    const time = performance.now() * 0.003;
-    for (const { centerDot } of this._nodes) {
-      centerDot.material.opacity = 0.5 + Math.sin(time) * 0.25;
+    const now = performance.now();
+
+    // 1. Process active teleport transition
+    if (this._teleportState && this._teleportState.active) {
+      const { start, duration, isVR, startPos, targetPos, startYaw, targetYaw, lookTarget, data } = this._teleportState;
+      const elapsed = now - start;
+      const t = Math.min(elapsed / duration, 1.0);
+      const easeT = t * (2 - t); // ease-out quad
+
+      if (isVR && this.cameraRig) {
+        this.cameraRig.position.lerpVectors(startPos, targetPos, easeT);
+        this.cameraRig.rotation.y = startYaw + (targetYaw - startYaw) * easeT;
+        this.cameraRig.updateMatrixWorld(true);
+      } else {
+        this.camera.position.lerpVectors(startPos, targetPos, easeT);
+        if (this.vrSession && this.vrSession._orbitControls && lookTarget) {
+          this.vrSession._orbitControls.target.copy(lookTarget);
+          this.vrSession._orbitControls.update();
+        }
+      }
+
+      if (t >= 1.0) {
+        this._teleportState.active = false;
+        this._isTeleporting = false;
+        this._currentRigPos.copy(targetPos);
+
+        // After reaching aisle, ensure 🧠 concept badge is placed nearby without disrupting flow
+        if (data && ['math', 'food', 'sports'].includes(data.id)) {
+          const targetNode = this._nodes.find(n => n.data.id === data.id);
+          if (targetNode) {
+            conceptOverlayManager.ensureBadge('storage_search', targetNode.nodeGroup, new THREE.Vector3(0, 1.2, 0));
+          }
+        }
+      }
+    }
+
+    // 2. Gentle pulse & distance management for all teleport nodes
+    const time = now * 0.003;
+    const playerPos = (this.cameraRig && (this.vrSession?.presenting || this.rendererIsXR()))
+      ? this.cameraRig.position
+      : this.camera.position;
+
+    for (const { centerDot, ring, discMat, data } of this._nodes) {
+      const dist = Math.hypot(playerPos.x - data.floorPos.x, playerPos.z - data.floorPos.z);
+      const isCurrent = dist < 1.1;
+
+      // Dim current standing node slightly so it doesn't distract
+      if (isCurrent) {
+        centerDot.material.opacity = 0.3;
+        ring.material.opacity = 0.3;
+        discMat.emissiveIntensity = 0.2;
+      } else {
+        centerDot.material.opacity = 0.6 + Math.sin(time) * 0.25;
+        ring.material.opacity = 0.7 + Math.cos(time) * 0.2;
+      }
     }
   }
 }

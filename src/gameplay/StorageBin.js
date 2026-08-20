@@ -133,8 +133,12 @@ export class StorageBin {
     const onSelect = () => this._onDoorClick();
     const onHover  = (_, isHover) => {
       this._door.material.emissive = isHover
-        ? new THREE.Color(CATEGORY_COLORS[this.itemData.category]).multiplyScalar(0.4)
+        ? new THREE.Color(CATEGORY_COLORS[this.itemData.category]).multiplyScalar(0.6)
         : new THREE.Color(0);
+      if (this._lockMesh && this._lockMesh.children[0]) {
+        this._lockMesh.children[0].material.emissiveIntensity = isHover ? 0.8 : 0;
+      }
+      this.group.scale.setScalar(isHover ? 1.03 : 1.0);
     };
 
     this._door.userData.onSelect = onSelect;
@@ -162,8 +166,9 @@ export class StorageBin {
     label.userData.onSelect = () => this._onDoorClick();
     label.userData.onHover  = (_, isHover) => {
       this._door.material.emissive = isHover
-        ? new THREE.Color(CATEGORY_COLORS[this.itemData.category]).multiplyScalar(0.4)
+        ? new THREE.Color(CATEGORY_COLORS[this.itemData.category]).multiplyScalar(0.6)
         : new THREE.Color(0);
+      this.group.scale.setScalar(isHover ? 1.03 : 1.0);
     };
     this.input.register(label);
   }
@@ -186,28 +191,43 @@ export class StorageBin {
   // ── Interaction ───────────────────────────────────────────────────────
 
   _onDoorClick() {
-    // Only interactable when a matching order is active
-    if (!gameState.activeOrder) return;
-    if (gameState.activeOrder.id !== this.itemData.id) {
-      // Wrong bin — flash red briefly and play buzz
-      audioManager.play('buzz');
-      const orig = this._door.material.color.getHex();
-      this._door.material.color.setHex(0xe63946);
-      setTimeout(() => this._door.material.color.setHex(orig), 400);
+    // If no order is active yet
+    if (!gameState.activeOrder) {
+      audioManager.play('click');
+      const orig = this._door.material.emissive.getHex();
+      this._door.material.emissive.setHex(0xffd166);
+      setTimeout(() => this._door.material.emissive.setHex(orig), 300);
       return;
     }
+
     if (this.isOpen) {
       this._spawnItem();
       return;
     }
 
-    // Trigger Working Memory concept overlay
-    conceptOverlayManager.trigger('bin_working_memory', this.group, new THREE.Vector3(0, 0.7, 0));
+    if (gameState.activeOrder.id !== this.itemData.id) {
+      // Wrong bin — flash red briefly and play buzz
+      audioManager.play('buzz');
+      const orig = this._door.material.color.getHex();
+      this._door.material.color.setHex(0xe63946);
+      setTimeout(() => this._door.material.color.setHex(orig), 450);
+      return;
+    }
 
-    // Start puzzle
-    gameState.transition(STATE.PUZZLE);
-    gameState.activeBin = this;
-    this._puzzle.start();
+    const startPuzzle = () => {
+      gameState.transition(STATE.PUZZLE);
+      gameState.activeBin = this;
+      this._puzzle.start();
+    };
+
+    // Trigger Working Memory concept overlay and only start puzzle on dismiss
+    if (gameState.shouldTriggerConcept('bin_working_memory')) {
+      conceptOverlayManager.trigger('bin_working_memory', this.group, new THREE.Vector3(0, 0.7, 0), false, () => {
+        startPuzzle();
+      });
+    } else {
+      startPuzzle();
+    }
   }
 
   _openBin() {

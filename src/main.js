@@ -126,6 +126,11 @@ renderer.setAnimationLoop((timestamp, frame) => {
     const dt  = Math.min((now - lastTime) / 1000, 0.1); // seconds, capped
     lastTime  = now;
 
+    // In WebXR, update XR camera immediately so all HUDs, reticles & rays have 0-latency tracking
+    if (renderer.xr.isPresenting) {
+      renderer.xr.updateCamera(camera);
+    }
+
     // Get current XR camera in VR, or normal camera on desktop
     const activeCamera = renderer.xr.isPresenting
       ? renderer.xr.getCamera()

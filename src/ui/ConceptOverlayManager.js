@@ -258,16 +258,21 @@ export class ConceptOverlayManager {
    * @param {THREE.Object3D} [anchorObject]  object near which to place persistent badge
    * @param {THREE.Vector3} [badgeOffset]     offset for badge position
    * @param {boolean} [forceShow=false]      force show even if seen (e.g. from badge click)
+   * @param {Function} [onDismiss=null]      callback when overlay is dismissed
    */
-  trigger(conceptKey, anchorObject = null, badgeOffset = new THREE.Vector3(0, 0.8, 0), forceShow = false) {
+  trigger(conceptKey, anchorObject = null, badgeOffset = new THREE.Vector3(0, 0.8, 0), forceShow = false, onDismiss = null) {
     const conceptData = CONCEPT_EXPLANATIONS[conceptKey];
-    if (!conceptData) return;
+    if (!conceptData) {
+      if (onDismiss) onDismiss();
+      return;
+    }
 
     if (!forceShow && !gameState.shouldTriggerConcept(conceptKey)) {
       // Already seen, ensure badge exists near object if provided
       if (anchorObject) {
         this.ensureBadge(conceptKey, anchorObject, badgeOffset);
       }
+      if (onDismiss) onDismiss();
       return;
     }
 
@@ -277,6 +282,7 @@ export class ConceptOverlayManager {
     this.activeKey = conceptKey;
     this._targetAnchor = anchorObject;
     this._badgeOffset  = badgeOffset;
+    this._onDismissCallback = onDismiss;
 
     this._renderCardContent(conceptData);
 
@@ -304,7 +310,14 @@ export class ConceptOverlayManager {
       this.ensureBadge(key, this._targetAnchor, this._badgeOffset);
     }
 
+    const cb = this._onDismissCallback;
+    this._onDismissCallback = null;
+
     this.hideOverlay();
+
+    if (cb) {
+      cb();
+    }
   }
 
   hideOverlay() {

@@ -14,9 +14,9 @@ import { GazeReticle } from '../ui/GazeReticle.js';
 import { audioManager } from './AudioManager.js';
 
 const DWELL_TIME_MS = 1000; // 1 second continuous gaze triggers selection
-const PINCH_THRESHOLD_START = 0.038; // 3.8 cm: pinch activates
-const PINCH_THRESHOLD_RELEASE = 0.050; // 5.0 cm: pinch releases (hysteresis)
-const TARGET_RETENTION_MS = 350; // 350ms buffer for hand twitch during pinch
+const PINCH_THRESHOLD_START = 0.045; // 4.5 cm: pinch activates reliably
+const PINCH_THRESHOLD_RELEASE = 0.060; // 6.0 cm: pinch releases (hysteresis)
+const TARGET_RETENTION_MS = 450; // 450ms buffer for hand twitch during pinch
 const SELECT_DEBOUNCE_MS = 250; // 250ms debounce between select clicks
 
 // Reusable scratch objects to eliminate per-frame GC allocations
@@ -55,8 +55,8 @@ export class InputManager {
     this._gazeTriggered = false;
 
     // Hand tracking & Controller state
-    this._pinchingHands = new Set(); // set of inputSource hands currently pinching
-    this._lastHandTargetMap = new Map(); // source/ctrl -> { hit, time } for pinch target retention
+    this._pinchingHands = new Set(); // set of handedness keys currently pinching
+    this._lastHandTargetMap = new Map(); // source/ctrl/key -> { hit, time } for pinch target retention
     this._lastSelectTime = 0;
     this._lastSelectedObj = null;
 
@@ -146,7 +146,7 @@ export class InputManager {
       // 1. Controller TargetRaySpace (pointing ray)
       const ctrl = renderer.xr.getController(i);
 
-      const handleSelect = () => {
+      const handleSelect = (event) => {
         if (this.cameraRig) this.cameraRig.updateMatrixWorld(true);
         ctrl.updateMatrixWorld(true);
 
@@ -156,10 +156,19 @@ export class InputManager {
 
         // Check target retention buffer if instant ray missed due to pinch movement
         if (!target) {
-          const buffered = this._lastHandTargetMap.get(ctrl);
+          const buffered = this._lastHandTargetMap.get(ctrl) ||
+                           (event && event.data && this._lastHandTargetMap.get(event.data)) ||
+                           this._lastHandTargetMap.get('controller_' + i) ||
+                           this._lastHandTargetMap.get('global');
           if (buffered && (now - buffered.time < TARGET_RETENTION_MS)) {
             target = buffered.hit;
           }
+        }
+
+        // Fallback: If hand ray missed during pinch, use current gaze target or hovered object
+        if (!target) {
+          if (this._hovered) target = this._hovered;
+          else if (this._gazeTarget) target = this._gazeTarget;
         }
 
         if (target) {
@@ -186,9 +195,49 @@ export class InputManager {
 
       this._controllers.push(ctrl);
     }
+
+    // Also register session-level select listeners as a universal safeguard
+    renderer.xr.addEventListener('sessionstart', () => {
+      const session = renderer.xr.getSession();
+      if (!session) return;
+
+      const onSessionSelect = (event) => {
+        const now = performance.now();
+        let target = null;
+        if (event.inputSource) {
+          const buffered = this._lastHandTargetMap.get(event.inputSource) ||
+                           this._lastHandTargetMap.get(event.inputSource.handedness);
+          if (buffered && (now - buffered.time < TARGET_RETENTION_MS)) {
+            target = buffered.hit;
+          }
+        }
+        if (!target) {
+          const globalBuffered = this._lastHandTargetMap.get('global');
+          if (globalBuffered && (now - globalBuffered.time < TARGET_RETENTION_MS)) {
+            target = globalBuffered.hit;
+          }
+        }
+        if (!target) {
+          target = this._hovered || this._gazeTarget;
+        }
+        if (target) {
+          this._fireSelect(target);
+        }
+      };
+
+      session.addEventListener('selectstart', onSessionSelect);
+      session.addEventListener('select', onSessionSelect);
+    });
   }
 
   _castFromController(ctrl) {
+    if (!ctrl || !ctrl.visible) {
+      if (ctrl && ctrl.userData && ctrl.userData.ray) {
+        ctrl.userData.ray.visible = false;
+      }
+      return null;
+    }
+
     if (this.cameraRig) this.cameraRig.updateMatrixWorld(true);
     ctrl.updateMatrixWorld(true);
 
@@ -201,7 +250,9 @@ export class InputManager {
     let hit = hits.length > 0 ? this._findInteractable(hits[0].object) : null;
 
     if (hit) {
-      this._lastHandTargetMap.set(ctrl, { hit, time: performance.now() });
+      const now = performance.now();
+      this._lastHandTargetMap.set(ctrl, { hit, time: now });
+      this._lastHandTargetMap.set('global', { hit, time: now });
     }
 
     // Update visual ray
@@ -275,7 +326,8 @@ export class InputManager {
                 }
               }
 
-              const wasPinching = this._pinchingHands.has(source);
+              const handKey = source.handedness || 'hand_' + activeSources.size;
+              const wasPinching = this._pinchingHands.has(handKey) || this._pinchingHands.has(source);
               const isPinching = wasPinching
                 ? (distIndex < PINCH_THRESHOLD_RELEASE || distMiddle < PINCH_THRESHOLD_RELEASE)
                 : (distIndex < PINCH_THRESHOLD_START || distMiddle < PINCH_THRESHOLD_START);
@@ -326,7 +378,7 @@ export class InputManager {
               if (this.cameraRig) {
                 _vWorldRayOrigin.copy(_vLocalRayOrigin);
                 this.cameraRig.localToWorld(_vWorldRayOrigin);
-                _vWorldRayDir.copy(_vLocalRayDir).applyQuaternion(this.cameraRig.quaternion).normalize();
+                _vWorldRayDir.copy(_vLocalRayDir).transformDirection(this.cameraRig.matrixWorld).normalize();
               } else {
                 _vWorldRayOrigin.copy(_vLocalRayOrigin);
                 _vWorldRayDir.copy(_vLocalRayDir);
@@ -347,6 +399,8 @@ export class InputManager {
               if (currentHit) {
                 if (!primaryHandHit) primaryHandHit = currentHit;
                 this._lastHandTargetMap.set(source, { hit: currentHit, time: now });
+                this._lastHandTargetMap.set(handKey, { hit: currentHit, time: now });
+                this._lastHandTargetMap.set('global', { hit: currentHit, time: now });
               }
 
               // Visual ray line in scene space
@@ -360,23 +414,33 @@ export class InputManager {
               line.material.opacity = isPinching ? 1.0 : (currentHit ? 0.9 : 0.5);
               line.visible = true;
 
-              // Handle Pinch Trigger with Per-Hand Target Retention Buffer
+              // Handle Pinch Trigger with Per-Hand Target Retention Buffer & Gaze Fallback
               if (isPinching && !wasPinching) {
+                this._pinchingHands.add(handKey);
                 this._pinchingHands.add(source);
                 let targetToSelect = currentHit;
 
-                // If ray slipped off target during the pinch movement, select buffered target
+                // 1. Check retention buffer for recent hit on this hand or globally
                 if (!targetToSelect) {
-                  const buffered = this._lastHandTargetMap.get(source);
+                  const buffered = this._lastHandTargetMap.get(source) ||
+                                   this._lastHandTargetMap.get(handKey) ||
+                                   this._lastHandTargetMap.get('global');
                   if (buffered && (now - buffered.time < TARGET_RETENTION_MS)) {
                     targetToSelect = buffered.hit;
                   }
+                }
+
+                // 2. Fallback: If no direct hand ray hit on pinch, select current gaze or hovered target
+                if (!targetToSelect) {
+                  if (this._hovered) targetToSelect = this._hovered;
+                  else if (this._gazeTarget) targetToSelect = this._gazeTarget;
                 }
 
                 if (targetToSelect) {
                   this._fireSelect(targetToSelect);
                 }
               } else if (!isPinching && wasPinching) {
+                this._pinchingHands.delete(handKey);
                 this._pinchingHands.delete(source);
               }
             }
