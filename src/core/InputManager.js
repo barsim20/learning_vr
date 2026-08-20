@@ -381,13 +381,30 @@ export class InputManager {
               line.material.opacity = isPinching ? 1.0 : (currentHit ? 0.9 : 0.5);
               line.visible = true;
 
-              // Handle Pinch Trigger with Per-Hand Target Retention Buffer & Gaze Fallback
+              // Handle Pinch Trigger with Direct Touch Proximity, Retention Buffer & Gaze Fallback
               if (isPinching && !wasPinching) {
                 this._pinchingHands.add(handKey);
                 this._pinchingHands.add(source);
                 let targetToSelect = currentHit;
 
-                // 1. Check retention buffer for recent hit on this hand or globally
+                // 1. Check direct touch / proximity grab (hand near interactable within 0.45m)
+                if (!targetToSelect) {
+                  let closestDist = 0.45;
+                  const pool = this._getActiveInteractables();
+                  const objWorldPos = new THREE.Vector3();
+                  for (const obj of pool) {
+                    if (obj.visible !== false) {
+                      obj.getWorldPosition(objWorldPos);
+                      const d = objWorldPos.distanceTo(_vWorldRayOrigin);
+                      if (d < closestDist) {
+                        closestDist = d;
+                        targetToSelect = this._findInteractable(obj);
+                      }
+                    }
+                  }
+                }
+
+                // 2. Check retention buffer for recent hit on this hand or globally
                 if (!targetToSelect) {
                   const buffered = this._lastHandTargetMap.get(source) ||
                                    this._lastHandTargetMap.get(handKey) ||
@@ -397,7 +414,7 @@ export class InputManager {
                   }
                 }
 
-                // 2. Fallback: If no direct hand ray hit on pinch, select current gaze or hovered target
+                // 3. Fallback: If no direct hand ray hit on pinch, select current gaze or hovered target
                 if (!targetToSelect) {
                   if (this._hovered) targetToSelect = this._hovered;
                   else if (this._gazeTarget) targetToSelect = this._gazeTarget;

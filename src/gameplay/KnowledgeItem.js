@@ -57,30 +57,39 @@ export class KnowledgeItem {
       maxWidth: 200,
       worldScale: 0.005,
     });
-    this._label.position.y = 0.22;
+    this._label.position.y = 0.24;
     this.mesh.add(this._label);
 
-    // Invisible generous padding hitbox around the item for easy pickup
+    // Generous double-sided interactive hitbox volume around item
     this.hitBox = new THREE.Mesh(
-      new THREE.BoxGeometry(0.45, 0.45, 0.45),
-      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }),
+      new THREE.BoxGeometry(0.60, 0.60, 0.60),
+      new THREE.MeshBasicMaterial({
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
     );
     this.mesh.add(this.hitBox);
 
     // Interaction
     const onSelect = () => this._pickup();
     const onHover  = (_, isHover) => {
-      this.mesh.material.emissiveIntensity = isHover ? 0.8 : 0.3;
+      this.mesh.material.emissiveIntensity = isHover ? 1.0 : 0.35;
+      this.mesh.scale.setScalar(isHover ? 1.15 : 1.0);
     };
 
     this.mesh.userData.onSelect   = onSelect;
     this.mesh.userData.onHover    = onHover;
     this.hitBox.userData.onSelect = onSelect;
     this.hitBox.userData.onHover  = onHover;
+    this._label.userData.onSelect = onSelect;
+    this._label.userData.onHover  = onHover;
 
     this.scene.add(this.mesh);
     this.input.register(this.mesh);
     this.input.register(this.hitBox);
+    this.input.register(this._label);
   }
 
   /** Place item at a world position */
@@ -93,8 +102,10 @@ export class KnowledgeItem {
     if (this.carried) return;
     this.carried = true;
     audioManager.play('pickup');
+    this.mesh.scale.setScalar(1.0);
     this.input.unregister(this.mesh);
     this.input.unregister(this.hitBox);
+    this.input.unregister(this._label);
     this.mesh.material.emissiveIntensity = 1.2;
     gameState._carriedItemRef = this; // so main.js can drive updateCarried
     if (this.onPickup) this.onPickup(this);
