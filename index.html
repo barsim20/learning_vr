@@ -42,8 +42,27 @@
         font-size: 0.9rem;
         letter-spacing: 1px;
         text-transform: uppercase;
+        max-width: 90vw;
+        text-align: center;
+        word-break: break-word;
       }
     </style>
+    <script>
+      window.addEventListener('error', function(e) {
+        var el = document.getElementById('status');
+        if (el) {
+          el.style.color = '#ff4d4f';
+          el.textContent = 'Error: ' + (e.message || e);
+        }
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        var el = document.getElementById('status');
+        if (el) {
+          el.style.color = '#ff4d4f';
+          el.textContent = 'Promise Error: ' + (e.reason ? (e.reason.message || e.reason) : e);
+        }
+      });
+    </script>
   </head>
   <body>
     <canvas id="app"></canvas>

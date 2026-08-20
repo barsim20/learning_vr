@@ -62,8 +62,8 @@ cameraRig.add(camera);
 // ── VR Session ───────────────────────────────────────────────────────────────
 
 const vrSession = new VRSession(renderer, camera, cameraRig);
-vrSession.init().then(() => {
-  document.getElementById('status').textContent = '';
+vrSession.init().catch(err => {
+  console.error('VRSession init failed:', err);
 });
 
 // ── Input & Concept Overlays ──────────────────────────────────────────────────
@@ -121,37 +121,36 @@ renderer.xr.addEventListener('sessionstart', ensureAudio);
 let lastTime = performance.now();
 
 renderer.setAnimationLoop((timestamp, frame) => {
-  const now = timestamp || performance.now();
-  const dt  = Math.min((now - lastTime) / 1000, 0.1); // seconds, capped
-  lastTime  = now;
+  try {
+    const now = timestamp || performance.now();
+    const dt  = Math.min((now - lastTime) / 1000, 0.1); // seconds, capped
+    lastTime  = now;
 
-  // In WebXR, update XR camera immediately so all HUDs, reticles & rays have 0-latency tracking
-  if (renderer.xr.isPresenting) {
-    renderer.xr.updateCamera(camera);
+    // Get current XR camera in VR, or normal camera on desktop
+    const activeCamera = renderer.xr.isPresenting
+      ? renderer.xr.getCamera()
+      : camera;
+
+    if (cameraRig) {
+      cameraRig.updateMatrixWorld(true);
+    }
+
+    vrSession.update();
+    input.update();
+    teleportSystem.update(dt);
+    orderSystem.update(activeCamera, dt);
+    storageAisle.update(activeCamera, dt);
+    startScreen.update(activeCamera);
+    objectiveHUD.update(activeCamera);
+    conceptOverlayManager.update(activeCamera);
+
+    // Update carried item if any
+    if (gameState.carriedItem && gameState._carriedItemRef) {
+      gameState._carriedItemRef.updateCarried(activeCamera, dt);
+    }
+
+    renderer.render(scene, camera);
+  } catch (err) {
+    console.error('Animation loop error:', err);
   }
-
-  // Get current XR camera in VR, or normal camera on desktop
-  const activeCamera = renderer.xr.isPresenting
-    ? renderer.xr.getCamera()
-    : camera;
-
-  if (cameraRig) {
-    cameraRig.updateMatrixWorld(true);
-  }
-
-  vrSession.update();
-  input.update();
-  teleportSystem.update(dt);
-  orderSystem.update(activeCamera, dt);
-  storageAisle.update(activeCamera, dt);
-  startScreen.update(activeCamera);
-  objectiveHUD.update(activeCamera);
-  conceptOverlayManager.update(activeCamera);
-
-  // Update carried item if any
-  if (gameState.carriedItem && gameState._carriedItemRef) {
-    gameState._carriedItemRef.updateCarried(activeCamera, dt);
-  }
-
-  renderer.render(scene, camera);
 });

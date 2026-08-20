@@ -221,172 +221,180 @@ export class InputManager {
   // ── WebXR Hand Tracking & Gesture Recognition ───────────────────────────
 
   _updateHandGestures() {
-    const session = this.renderer.xr.getSession();
-    if (!session || !session.inputSources) {
-      this._hideHandRays();
-      return null;
-    }
+    try {
+      const session = this.renderer.xr.getSession();
+      if (!session || !session.inputSources) {
+        this._hideHandRays();
+        return null;
+      }
 
-    const frame = this.renderer.xr.getFrame();
-    const referenceSpace = this.renderer.xr.getReferenceSpace();
-    if (!frame || !referenceSpace) {
-      this._hideHandRays();
-      return null;
-    }
+      const frame = this.renderer.xr.getFrame ? this.renderer.xr.getFrame() : null;
+      const referenceSpace = this.renderer.xr.getReferenceSpace ? this.renderer.xr.getReferenceSpace() : null;
+      if (!frame || !referenceSpace) {
+        this._hideHandRays();
+        return null;
+      }
 
-    if (this.cameraRig) {
-      this.cameraRig.updateMatrixWorld(true);
-    }
+      if (this.cameraRig) {
+        this.cameraRig.updateMatrixWorld(true);
+      }
 
-    let primaryHandHit = null;
-    const activeSources = new Set();
-    const now = performance.now();
+      let primaryHandHit = null;
+      const activeSources = new Set();
+      const now = performance.now();
 
-    for (const source of session.inputSources) {
-      if (source.hand) {
-        activeSources.add(source);
+      for (const source of session.inputSources) {
+        if (source.hand && typeof source.hand.get === 'function') {
+          activeSources.add(source);
 
-        const indexTip = source.hand.get('index-finger-tip');
-        const middleTip = source.hand.get('middle-finger-tip');
-        const thumbTip = source.hand.get('thumb-tip');
-        const wrist = source.hand.get('wrist');
-        const indexProximal = source.hand.get('index-finger-phalanx-proximal') ||
-                              source.hand.get('index-finger-metacarpal');
+          const indexTip = source.hand.get('index-finger-tip');
+          const middleTip = source.hand.get('middle-finger-tip');
+          const thumbTip = source.hand.get('thumb-tip');
+          const wrist = source.hand.get('wrist');
+          const indexProximal = source.hand.get('index-finger-phalanx-proximal') ||
+                                source.hand.get('index-finger-metacarpal');
 
-        if (indexTip && thumbTip) {
-          const indexPose = frame.getJointPose?.(indexTip, referenceSpace);
-          const thumbPose = frame.getJointPose?.(thumbTip, referenceSpace);
+          if (indexTip && thumbTip) {
+            const indexPose = frame.getJointPose ? frame.getJointPose(indexTip, referenceSpace) : null;
+            const thumbPose = frame.getJointPose ? frame.getJointPose(thumbTip, referenceSpace) : null;
 
-          if (indexPose && thumbPose) {
-            const p1 = indexPose.transform.position;
-            const p2 = thumbPose.transform.position;
-            const distIndex = Math.hypot(p1.x - p2.x, p1.y - p2.y, p1.z - p2.z);
+            if (indexPose && thumbPose && indexPose.transform && thumbPose.transform) {
+              const p1 = indexPose.transform.position;
+              const p2 = thumbPose.transform.position;
+              const distIndex = Math.hypot(p1.x - p2.x, p1.y - p2.y, p1.z - p2.z);
 
-            // Optional middle finger pinch check for ergonomics
-            let distMiddle = 1.0;
-            if (middleTip) {
-              const middlePose = frame.getJointPose?.(middleTip, referenceSpace);
-              if (middlePose) {
-                const pm = middlePose.transform.position;
-                distMiddle = Math.hypot(pm.x - p2.x, pm.y - p2.y, pm.z - p2.z);
-              }
-            }
-
-            const wasPinching = this._pinchingHands.has(source);
-            const isPinching = wasPinching
-              ? (distIndex < PINCH_THRESHOLD_RELEASE || distMiddle < PINCH_THRESHOLD_RELEASE)
-              : (distIndex < PINCH_THRESHOLD_START || distMiddle < PINCH_THRESHOLD_START);
-
-            // Compute stabilized ray origin and direction in WebXR reference space
-            _vLocalRayOrigin.set(p1.x, p1.y, p1.z);
-            let haveValidRay = false;
-
-            // Preferred: WebXR runtime targetRaySpace (calibrated, stabilized pinch-aim ray)
-            const targetRayPose = source.targetRaySpace ? frame.getPose?.(source.targetRaySpace, referenceSpace) : null;
-            if (targetRayPose) {
-              _vLocalRayOrigin.set(
-                targetRayPose.transform.position.x,
-                targetRayPose.transform.position.y,
-                targetRayPose.transform.position.z,
-              );
-              const q = targetRayPose.transform.orientation;
-              _qTemp.set(q.x, q.y, q.z, q.w);
-              _vLocalRayDir.set(0, 0, -1).applyQuaternion(_qTemp).normalize();
-              haveValidRay = true;
-            }
-
-            // Fallback: Arm/palm vector (wrist -> index base) which does not curl during pinch
-            if (!haveValidRay && wrist && indexProximal) {
-              const wristPose = frame.getJointPose?.(wrist, referenceSpace);
-              const indexBasePose = frame.getJointPose?.(indexProximal, referenceSpace);
-              if (wristPose && indexBasePose) {
-                const pw = wristPose.transform.position;
-                const pb = indexBasePose.transform.position;
-                _vLocalRayOrigin.set(pb.x, pb.y, pb.z);
-                _vLocalRayDir.set(pb.x - pw.x, pb.y - pw.y, pb.z - pw.z);
-                if (_vLocalRayDir.lengthSq() > 0.0001) {
-                  _vLocalRayDir.normalize();
-                  haveValidRay = true;
-                }
-              }
-            }
-
-            // Secondary fallback: forward from active camera
-            if (!haveValidRay) {
-              this._getActiveCamera().getWorldDirection(_vLocalRayDir);
-            }
-
-            // Transform origin and direction into Three.js World Space via cameraRig
-            if (this.cameraRig) {
-              _vWorldRayOrigin.copy(_vLocalRayOrigin);
-              this.cameraRig.localToWorld(_vWorldRayOrigin);
-              _vWorldRayDir.copy(_vLocalRayDir).applyQuaternion(this.cameraRig.quaternion).normalize();
-            } else {
-              _vWorldRayOrigin.copy(_vLocalRayOrigin);
-              _vWorldRayDir.copy(_vLocalRayDir);
-            }
-
-            // Raycast along world ray
-            this._raycaster.set(_vWorldRayOrigin, _vWorldRayDir);
-            const hits = this._raycaster.intersectObjects(this._getActiveInteractables(), true);
-            let currentHit = null;
-            let rayLength = 5.0;
-
-            if (hits.length > 0) {
-              currentHit = this._findInteractable(hits[0].object);
-              rayLength = hits[0].distance;
-            }
-
-            if (currentHit) {
-              if (!primaryHandHit) primaryHandHit = currentHit;
-              this._lastHandTargetMap.set(source, { hit: currentHit, time: now });
-            }
-
-            // Visual ray line in scene space
-            const line = this._getOrCreateHandRay(source);
-            _vEndPos.copy(_vWorldRayOrigin).addScaledVector(_vWorldRayDir, rayLength);
-            const posAttr = line.geometry.attributes.position;
-            posAttr.setXYZ(0, _vWorldRayOrigin.x, _vWorldRayOrigin.y, _vWorldRayOrigin.z);
-            posAttr.setXYZ(1, _vEndPos.x, _vEndPos.y, _vEndPos.z);
-            posAttr.needsUpdate = true;
-            line.material.color.setHex(isPinching ? 0xffd166 : (currentHit ? 0xffd166 : 0x06d6a0));
-            line.material.opacity = isPinching ? 1.0 : (currentHit ? 0.9 : 0.5);
-            line.visible = true;
-
-            // Handle Pinch Trigger with Per-Hand Target Retention Buffer
-            if (isPinching && !wasPinching) {
-              this._pinchingHands.add(source);
-              let targetToSelect = currentHit;
-
-              // If ray slipped off target during the pinch movement, select buffered target
-              if (!targetToSelect) {
-                const buffered = this._lastHandTargetMap.get(source);
-                if (buffered && (now - buffered.time < TARGET_RETENTION_MS)) {
-                  targetToSelect = buffered.hit;
+              // Optional middle finger pinch check for ergonomics
+              let distMiddle = 1.0;
+              if (middleTip && frame.getJointPose) {
+                const middlePose = frame.getJointPose(middleTip, referenceSpace);
+                if (middlePose && middlePose.transform) {
+                  const pm = middlePose.transform.position;
+                  distMiddle = Math.hypot(pm.x - p2.x, pm.y - p2.y, pm.z - p2.z);
                 }
               }
 
-              if (targetToSelect) {
-                this._fireSelect(targetToSelect);
+              const wasPinching = this._pinchingHands.has(source);
+              const isPinching = wasPinching
+                ? (distIndex < PINCH_THRESHOLD_RELEASE || distMiddle < PINCH_THRESHOLD_RELEASE)
+                : (distIndex < PINCH_THRESHOLD_START || distMiddle < PINCH_THRESHOLD_START);
+
+              // Compute stabilized ray origin and direction in WebXR reference space
+              _vLocalRayOrigin.set(p1.x, p1.y, p1.z);
+              let haveValidRay = false;
+
+              // Preferred: WebXR runtime targetRaySpace (calibrated, stabilized pinch-aim ray)
+              const targetRayPose = (source.targetRaySpace && frame.getPose)
+                ? frame.getPose(source.targetRaySpace, referenceSpace)
+                : null;
+
+              if (targetRayPose && targetRayPose.transform) {
+                _vLocalRayOrigin.set(
+                  targetRayPose.transform.position.x,
+                  targetRayPose.transform.position.y,
+                  targetRayPose.transform.position.z,
+                );
+                const q = targetRayPose.transform.orientation;
+                _qTemp.set(q.x, q.y, q.z, q.w);
+                _vLocalRayDir.set(0, 0, -1).applyQuaternion(_qTemp).normalize();
+                haveValidRay = true;
               }
-            } else if (!isPinching && wasPinching) {
-              this._pinchingHands.delete(source);
+
+              // Fallback: Arm/palm vector (wrist -> index base) which does not curl during pinch
+              if (!haveValidRay && wrist && indexProximal && frame.getJointPose) {
+                const wristPose = frame.getJointPose(wrist, referenceSpace);
+                const indexBasePose = frame.getJointPose(indexProximal, referenceSpace);
+                if (wristPose && indexBasePose && wristPose.transform && indexBasePose.transform) {
+                  const pw = wristPose.transform.position;
+                  const pb = indexBasePose.transform.position;
+                  _vLocalRayOrigin.set(pb.x, pb.y, pb.z);
+                  _vLocalRayDir.set(pb.x - pw.x, pb.y - pw.y, pb.z - pw.z);
+                  if (_vLocalRayDir.lengthSq() > 0.0001) {
+                    _vLocalRayDir.normalize();
+                    haveValidRay = true;
+                  }
+                }
+              }
+
+              // Secondary fallback: forward from active camera
+              if (!haveValidRay) {
+                this._getActiveCamera().getWorldDirection(_vLocalRayDir);
+              }
+
+              // Transform origin and direction into Three.js World Space via cameraRig
+              if (this.cameraRig) {
+                _vWorldRayOrigin.copy(_vLocalRayOrigin);
+                this.cameraRig.localToWorld(_vWorldRayOrigin);
+                _vWorldRayDir.copy(_vLocalRayDir).applyQuaternion(this.cameraRig.quaternion).normalize();
+              } else {
+                _vWorldRayOrigin.copy(_vLocalRayOrigin);
+                _vWorldRayDir.copy(_vLocalRayDir);
+              }
+
+              // Raycast along world ray
+              this._raycaster.set(_vWorldRayOrigin, _vWorldRayDir);
+              const hits = this._raycaster.intersectObjects(this._getActiveInteractables(), true);
+              let currentHit = null;
+              let rayLength = 5.0;
+
+              if (hits.length > 0) {
+                currentHit = this._findInteractable(hits[0].object);
+                rayLength = hits[0].distance;
+              }
+
+              if (currentHit) {
+                if (!primaryHandHit) primaryHandHit = currentHit;
+                this._lastHandTargetMap.set(source, { hit: currentHit, time: now });
+              }
+
+              // Visual ray line in scene space
+              const line = this._getOrCreateHandRay(source);
+              _vEndPos.copy(_vWorldRayOrigin).addScaledVector(_vWorldRayDir, rayLength);
+              const posAttr = line.geometry.attributes.position;
+              posAttr.setXYZ(0, _vWorldRayOrigin.x, _vWorldRayOrigin.y, _vWorldRayOrigin.z);
+              posAttr.setXYZ(1, _vEndPos.x, _vEndPos.y, _vEndPos.z);
+              posAttr.needsUpdate = true;
+              line.material.color.setHex(isPinching ? 0xffd166 : (currentHit ? 0xffd166 : 0x06d6a0));
+              line.material.opacity = isPinching ? 1.0 : (currentHit ? 0.9 : 0.5);
+              line.visible = true;
+
+              // Handle Pinch Trigger with Per-Hand Target Retention Buffer
+              if (isPinching && !wasPinching) {
+                this._pinchingHands.add(source);
+                let targetToSelect = currentHit;
+
+                // If ray slipped off target during the pinch movement, select buffered target
+                if (!targetToSelect) {
+                  const buffered = this._lastHandTargetMap.get(source);
+                  if (buffered && (now - buffered.time < TARGET_RETENTION_MS)) {
+                    targetToSelect = buffered.hit;
+                  }
+                }
+
+                if (targetToSelect) {
+                  this._fireSelect(targetToSelect);
+                }
+              } else if (!isPinching && wasPinching) {
+                this._pinchingHands.delete(source);
+              }
             }
           }
         }
       }
-    }
 
-    // Hide rays for inactive hand sources
-    if (this._handRayMap) {
-      for (const [source, line] of this._handRayMap.entries()) {
-        if (!activeSources.has(source)) {
-          line.visible = false;
+      // Hide rays for inactive hand sources
+      if (this._handRayMap) {
+        for (const [source, line] of this._handRayMap.entries()) {
+          if (!activeSources.has(source)) {
+            line.visible = false;
+          }
         }
       }
-    }
 
-    return primaryHandHit;
+      return primaryHandHit;
+    } catch (err) {
+      console.warn('Hand tracking update warning:', err);
+      return null;
+    }
   }
 
   _getOrCreateHandRay(source) {

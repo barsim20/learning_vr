@@ -27,50 +27,69 @@ export class VRSession {
 
   /** Check WebXR support and set up the Enter VR button. */
   async init() {
-    if (!navigator.xr) {
-      this._setStatus('WebXR not supported — running in desktop mode');
-      this._setupDesktopFallback();
-      return;
-    }
+    try {
+      if (!navigator.xr) {
+        this._setStatus('WebXR not supported — running in desktop mode');
+        this._setupDesktopFallback();
+        return;
+      }
 
-    this.supported = await navigator.xr.isSessionSupported('immersive-vr');
+      this.supported = await navigator.xr.isSessionSupported('immersive-vr');
 
-    if (this.supported) {
-      this._setStatus('Quest 3 ready — click Enter VR');
-      this._vrButton.disabled = false;
-      this._vrButton.addEventListener('click', () => this._startVR());
-    } else {
-      this._setStatus('VR not supported — running in desktop mode');
+      if (this.supported) {
+        this._setStatus('Quest 3 ready — click Enter VR');
+        if (this._vrButton) {
+          this._vrButton.disabled = false;
+          this._vrButton.addEventListener('click', () => this._startVR());
+        }
+      } else {
+        this._setStatus('VR not supported — running in desktop mode');
+        this._setupDesktopFallback();
+      }
+    } catch (err) {
+      console.error('VRSession init error:', err);
+      this._setStatus('VR Init Error: ' + (err.message || err));
       this._setupDesktopFallback();
     }
   }
 
   async _startVR() {
-    const session = await navigator.xr.requestSession('immersive-vr', {
-      optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'],
-    });
+    try {
+      this._setStatus('Starting VR session…');
+      const session = await navigator.xr.requestSession('immersive-vr', {
+        optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'],
+      });
 
-    if (this.cameraRig) {
-      this.cameraRig.position.set(0, 0, -2.0); // Store Manager position behind counter
-      this.cameraRig.rotation.set(0, 0, 0); // Keep identity rotation for 1:1 natural physical head tracking
-      this.cameraRig.updateMatrixWorld(true);
-      this.camera.position.set(0, 0, 0);
-      this.camera.rotation.set(0, 0, 0);
+      if (this.cameraRig) {
+        this.cameraRig.position.set(0, 0, -2.0); // Store Manager position behind counter
+        this.cameraRig.rotation.set(0, 0, 0); // Keep identity rotation for 1:1 natural physical head tracking
+        this.cameraRig.updateMatrixWorld(true);
+        this.camera.position.set(0, 0, 0);
+        this.camera.rotation.set(0, 0, 0);
+      }
+
+      this.renderer.xr.enabled = true;
+      await this.renderer.xr.setSession(session);
+      this.presenting = true;
+
+      session.addEventListener('end', () => {
+        this.presenting = false;
+        this._setStatus('VR session ended — click Enter VR to resume');
+        if (this._vrButton) {
+          this._vrButton.style.display = 'block';
+          this._vrButton.disabled = false;
+        }
+        if (this._orbitControls) this._orbitControls.enabled = true;
+      });
+
+      if (this._orbitControls) this._orbitControls.enabled = false;
+      if (this._vrButton) this._vrButton.style.display = 'none';
+      this._setStatus('');
+    } catch (err) {
+      console.error('Failed to start VR session:', err);
+      this._setStatus('Failed to enter VR: ' + (err.message || err));
+      if (this._vrButton) this._vrButton.disabled = false;
     }
-
-    this.renderer.xr.enabled = true;
-    await this.renderer.xr.setSession(session);
-    this.presenting = true;
-
-    session.addEventListener('end', () => {
-      this.presenting = false;
-      this._setStatus('VR session ended');
-      if (this._orbitControls) this._orbitControls.enabled = true;
-    });
-
-    if (this._orbitControls) this._orbitControls.enabled = false;
-    this._vrButton.style.display = 'none';
-    this._setStatus('');
   }
 
   _setupDesktopFallback() {
