@@ -47,18 +47,27 @@ export class ConceptOverlayManager {
     this.overlayGroup = new THREE.Group();
     this.scene.add(this.overlayGroup);
 
-    // 1. Darkening Backdrop Mesh (dims environment)
-    const backdropGeo = new THREE.PlaneGeometry(8, 6);
+    // 1. Darkening Backdrop Mesh (dims environment & blocks all world raycasts)
+    const backdropGeo = new THREE.PlaneGeometry(10, 8);
     const backdropMat = new THREE.MeshBasicMaterial({
       color: 0x030205,
       transparent: true,
-      opacity: 0.90,
-      depthTest: false,
+      opacity: 0.88,
+      depthWrite: false,
       side: THREE.DoubleSide,
     });
     this.backdrop = new THREE.Mesh(backdropGeo, backdropMat);
+    this.backdrop.position.set(0, 0, -0.05);
     this.backdrop.renderOrder = 990;
     this.overlayGroup.add(this.backdrop);
+
+    // Backdrop absorbs background clicks to prevent interacting with objects behind overlay
+    this.backdrop.userData.onSelect = () => {
+      // Optional subtle bounce/flash on acknowledge button to guide the user
+      this._drawButton(true);
+      setTimeout(() => this._drawButton(false), 200);
+    };
+    this.backdrop.userData.onHover = () => {};
 
     // 2. Main Concept Card Mesh (Canvas texture)
     this.cardCanvas = document.createElement('canvas');
@@ -72,11 +81,11 @@ export class ConceptOverlayManager {
     const cardMat = new THREE.MeshBasicMaterial({
       map: this.cardTexture,
       transparent: true,
-      depthTest: false,
+      depthWrite: false,
       side: THREE.DoubleSide,
     });
     this.cardMesh = new THREE.Mesh(cardGeo, cardMat);
-    this.cardMesh.position.set(0, 0.08, 0.02);
+    this.cardMesh.position.set(0, 0.08, 0.01);
     this.cardMesh.renderOrder = 991;
     this.overlayGroup.add(this.cardMesh);
 
@@ -91,20 +100,20 @@ export class ConceptOverlayManager {
     this.btnMat = new THREE.MeshBasicMaterial({
       map: this.btnTexture,
       transparent: true,
-      depthTest: false,
+      depthWrite: false,
       side: THREE.DoubleSide,
     });
     this.btnMesh = new THREE.Mesh(btnGeo, this.btnMat);
-    this.btnMesh.position.set(0, -0.32, 0.05);
+    this.btnMesh.position.set(0, -0.32, 0.04);
     this.btnMesh.renderOrder = 992;
     this.overlayGroup.add(this.btnMesh);
 
-    // Enlarged invisible 3D hit box volume for easy gaze/pinch selection
+    // Generous transparent raycastable hit volume box for effortless gaze/pinch selection
     const btnHitBox = new THREE.Mesh(
-      new THREE.BoxGeometry(1.0, 0.35, 0.3),
-      new THREE.MeshBasicMaterial({ visible: false })
+      new THREE.BoxGeometry(1.1, 0.4, 0.25),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
     );
-    btnHitBox.position.set(0, -0.32, 0.05);
+    btnHitBox.position.set(0, -0.32, 0.04);
     this.overlayGroup.add(btnHitBox);
     this.btnHitBox = btnHitBox;
 
@@ -124,6 +133,7 @@ export class ConceptOverlayManager {
 
     this.input.register(this.btnMesh);
     this.input.register(btnHitBox);
+    this.input.register(this.backdrop);
   }
 
   // ── Card Rendering ────────────────────────────────────────────────────────
@@ -261,15 +271,18 @@ export class ConceptOverlayManager {
 
     this._renderCardContent(conceptData);
 
-    // Position overlay in front of camera immediately
+    // Position overlay in front of camera immediately (0.95m distance is ideal in VR)
     if (this.camera) {
-      const offset = new THREE.Vector3(0, 0, -1.2);
+      const offset = new THREE.Vector3(0, 0, -0.95);
       offset.applyQuaternion(this.camera.quaternion);
       this.overlayGroup.position.copy(this.camera.position).add(offset);
       this.overlayGroup.quaternion.copy(this.camera.quaternion);
     }
 
     this.overlayGroup.visible = true;
+    if (this.input) {
+      this.input.setModal([this.btnMesh, this.btnHitBox, this.backdrop]);
+    }
     audioManager.play('conceptOpen');
   }
 
@@ -288,6 +301,9 @@ export class ConceptOverlayManager {
     this.overlayGroup.visible = false;
     this.activeKey = null;
     this._targetAnchor = null;
+    if (this.input) {
+      this.input.clearModal();
+    }
   }
 
   // ── Persistent 🧠 Badge Creation ──────────────────────────────────────────
@@ -372,9 +388,9 @@ export class ConceptOverlayManager {
   // ── Main Update Loop ──────────────────────────────────────────────────────
 
   update(camera) {
-    // Keep overlay positioned and aligned 1.2m in front of camera
+    // Keep overlay positioned and aligned 0.95m in front of camera
     if (this.overlayGroup.visible) {
-      const offset = new THREE.Vector3(0, 0, -1.2);
+      const offset = new THREE.Vector3(0, 0, -0.95);
       offset.applyQuaternion(camera.quaternion);
       this.overlayGroup.position.copy(camera.position).add(offset);
       this.overlayGroup.quaternion.copy(camera.quaternion);

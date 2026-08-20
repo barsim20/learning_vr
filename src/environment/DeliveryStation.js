@@ -61,7 +61,7 @@ export class DeliveryStation {
     // Large invisible hit box volume
     const hitBox = new THREE.Mesh(
       new THREE.CylinderGeometry(0.9, 0.9, 0.6, 16),
-      new THREE.MeshBasicMaterial({ visible: false }),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }),
     );
     hitBox.position.y = 1.1;
     this.group.add(hitBox);

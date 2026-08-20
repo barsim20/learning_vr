@@ -74,7 +74,7 @@ export class StorageBin {
     // Large invisible hit box volume around bin door for generous gaze & pinch selection
     const hitBox = new THREE.Mesh(
       new THREE.BoxGeometry(0.85, 0.85, 0.4),
-      new THREE.MeshBasicMaterial({ visible: false }),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }),
     );
     hitBox.position.set(0, 0, 0.25);
     this.group.add(hitBox);

@@ -59,7 +59,7 @@ export class KnowledgeItem {
     // Invisible generous padding hitbox around the item for easy pickup
     this.hitBox = new THREE.Mesh(
       new THREE.BoxGeometry(0.45, 0.45, 0.45),
-      new THREE.MeshBasicMaterial({ visible: false }),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }),
     );
     this.mesh.add(this.hitBox);
 

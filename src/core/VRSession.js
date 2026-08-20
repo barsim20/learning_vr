@@ -11,10 +11,12 @@ export class VRSession {
   /**
    * @param {THREE.WebGLRenderer} renderer
    * @param {THREE.Camera} camera
+   * @param {THREE.Group} [cameraRig]
    */
-  constructor(renderer, camera) {
+  constructor(renderer, camera, cameraRig = null) {
     this.renderer   = renderer;
     this.camera     = camera;
+    this.cameraRig  = cameraRig;
     this.supported  = false;
     this.presenting = false;
 
@@ -48,6 +50,13 @@ export class VRSession {
       optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'],
     });
 
+    if (this.cameraRig) {
+      this.cameraRig.position.set(0, 0, -2.0); // Store Manager position behind counter
+      this.cameraRig.rotation.set(0, Math.PI, 0); // Face forward (+Z) toward counter and customer
+      this.camera.position.set(0, 0, 0);
+      this.camera.rotation.set(0, 0, 0);
+    }
+
     this.renderer.xr.enabled = true;
     await this.renderer.xr.setSession(session);
     this.presenting = true;
@@ -55,25 +64,31 @@ export class VRSession {
     session.addEventListener('end', () => {
       this.presenting = false;
       this._setStatus('VR session ended');
+      if (this._orbitControls) this._orbitControls.enabled = true;
     });
 
+    if (this._orbitControls) this._orbitControls.enabled = false;
     this._vrButton.style.display = 'none';
     this._setStatus('');
   }
 
   _setupDesktopFallback() {
     this._vrButton.style.display = 'none';
+    if (this.cameraRig) {
+      this.cameraRig.position.set(0, 0, 0);
+      this.cameraRig.rotation.set(0, 0, 0);
+    }
+    this.camera.position.set(0, 1.6, -2.0);
     this._orbitControls = new OrbitControls(this.camera, this.renderer.domElement);
     this._orbitControls.enableDamping = true;
     this._orbitControls.dampingFactor = 0.1;
     this._orbitControls.target.set(0, 1.4, 0.5); // Target customer in front of counter
-    this.camera.position.set(0, 1.6, -2.0);     // Store Manager behind counter
     this._orbitControls.update();
   }
 
   /** Call every frame to keep OrbitControls smooth */
   update() {
-    if (this._orbitControls) this._orbitControls.update();
+    if (this._orbitControls && !this.presenting) this._orbitControls.update();
   }
 
   _setStatus(msg) {

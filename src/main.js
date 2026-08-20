@@ -41,26 +41,32 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
 });
 
-// ── Scene & Camera ───────────────────────────────────────────────────────────
+// ── Scene, Camera & Player Rig ───────────────────────────────────────────────
 
 const scene  = new THREE.Scene();
 scene.background = new THREE.Color(0x1a0a00); // dark warm
 scene.fog = new THREE.Fog(0x1a0a00, 12, 22);
 
+const cameraRig = new THREE.Group();
+cameraRig.position.set(0, 0, -2.0); // Store Manager position behind counter
+cameraRig.rotation.set(0, Math.PI, 0); // WebXR default forward (-Z) faces (+Z) toward counter and customer
+scene.add(cameraRig);
+
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 50);
-camera.position.set(0, 1.6, -2.0);  // Store Manager stands behind counter (shelves side)
+camera.position.set(0, 1.6, -2.0);  // Store Manager stands behind counter (shelves side) on desktop
 camera.lookAt(0, 1.4, 0.5);        // Looking forward toward counter and customer
+cameraRig.add(camera);
 
 // ── VR Session ───────────────────────────────────────────────────────────────
 
-const vrSession = new VRSession(renderer, camera);
+const vrSession = new VRSession(renderer, camera, cameraRig);
 vrSession.init().then(() => {
   document.getElementById('status').textContent = '';
 });
 
 // ── Input & Concept Overlays ──────────────────────────────────────────────────
 
-const input = new InputManager(renderer, scene, camera);
+const input = new InputManager(renderer, scene, camera, cameraRig);
 conceptOverlayManager.init(scene, camera, input);
 
 // ── Environment ──────────────────────────────────────────────────────────────
@@ -77,7 +83,7 @@ const deliveryStation = new DeliveryStation(
 const storageAisle = new StorageAisle(scene, input);
 
 // Controllerless Locomotion / Teleport System
-const teleportSystem = new TeleportSystem(scene, camera, input, vrSession);
+const teleportSystem = new TeleportSystem(scene, camera, input, vrSession, cameraRig);
 
 // ── Gameplay ─────────────────────────────────────────────────────────────────
 
