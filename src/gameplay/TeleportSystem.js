@@ -60,7 +60,7 @@ export class TeleportSystem {
       });
 
       const disc = new THREE.Mesh(
-        new THREE.CircleGeometry(0.85, 32),
+        new THREE.CircleGeometry(0.45, 32),
         discMat,
       );
       disc.rotation.x = -Math.PI / 2;
@@ -68,7 +68,7 @@ export class TeleportSystem {
 
       // 2. Outer luminous ring
       const ring = new THREE.Mesh(
-        new THREE.RingGeometry(0.85, 0.95, 32),
+        new THREE.RingGeometry(0.45, 0.52, 32),
         new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, side: THREE.DoubleSide }),
       );
       ring.rotation.x = -Math.PI / 2;
@@ -77,24 +77,23 @@ export class TeleportSystem {
 
       // 3. Center glowing pulse dot
       const centerDot = new THREE.Mesh(
-        new THREE.CircleGeometry(0.32, 24),
+        new THREE.CircleGeometry(0.18, 24),
         new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, side: THREE.DoubleSide }),
       );
       centerDot.rotation.x = -Math.PI / 2;
       centerDot.position.y = 0.006;
       nodeGroup.add(centerDot);
 
-      // 4. Low floor-level hit cylinder (height 0.12m, centered at y=0.06m)
-      // Strictly at floor height so it NEVER blocks shelves or bins behind it
+      // 4. Low floor-level hit cylinder
       const hitCylinder = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.95, 0.95, 0.12, 16),
+        new THREE.CylinderGeometry(0.52, 0.52, 0.08, 16),
         new THREE.MeshBasicMaterial({
           transparent: true,
           opacity: 0,
           depthWrite: false,
         }),
       );
-      hitCylinder.position.y = 0.06;
+      hitCylinder.position.y = 0.04;
       nodeGroup.add(hitCylinder);
 
       // 5. Floating label above node
@@ -259,21 +258,14 @@ export class TeleportSystem {
       ? this.cameraRig.position
       : this.camera.position;
 
-    for (const { centerDot, ring, discMat, label, hitCylinder, data } of this._nodes) {
+    for (const { centerDot, ring, discMat, label, hitCylinder, nodeGroup, data } of this._nodes) {
       const dist = Math.hypot(playerPos.x - data.floorPos.x, playerPos.z - data.floorPos.z);
       const isCurrent = dist < 1.1;
 
-      // When standing at a node, hide its label and hit cylinder, and disable disc raycasts so it never blocks shelves or bottom containers
-      label.visible = !isCurrent;
-      hitCylinder.visible = !isCurrent;
-      disc.raycast = isCurrent ? noopRaycast : THREE.Mesh.prototype.raycast;
-      centerDot.raycast = isCurrent ? noopRaycast : THREE.Mesh.prototype.raycast;
+      // When standing at a node, hide its nodeGroup so it never blocks shelves or receives raycasts
+      nodeGroup.visible = !isCurrent;
 
-      if (isCurrent) {
-        centerDot.material.opacity = 0.2;
-        ring.material.opacity = 0.2;
-        discMat.emissiveIntensity = 0.15;
-      } else {
+      if (!isCurrent) {
         centerDot.material.opacity = 0.6 + Math.sin(time) * 0.25;
         ring.material.opacity = 0.7 + Math.cos(time) * 0.2;
         discMat.emissiveIntensity = 0.5;
@@ -281,5 +273,3 @@ export class TeleportSystem {
     }
   }
 }
-
-function noopRaycast() {}

@@ -55,8 +55,8 @@ scene.add(cameraRig);
 cameraRig.updateMatrixWorld(true);
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 50);
-camera.position.set(0, 1.6, -2.0);  // Store Manager stands behind counter on desktop
-camera.lookAt(0, 1.4, 0.5);        // Looking forward toward counter and customer
+camera.position.set(0, 1.6, 0);   // Store Manager eye level in cameraRig
+camera.lookAt(0, 1.4, 2.5);       // Looking forward toward counter and customer (+Z)
 cameraRig.add(camera);
 
 // ── VR Session ───────────────────────────────────────────────────────────────
