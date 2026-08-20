@@ -20,6 +20,7 @@ const SEQUENCE_LENGTH_BY_COUNT = [5, 4, 3, 2, 1]; // indexed by retrievalCount (
 const SHOW_INTERVAL_MS   = 600;  // ms between each square lighting up during show phase
 const LIT_DURATION_MS    = 400;  // ms a square stays lit
 const FORGET_TIMEOUT_MS  = 60_000; // 60s — reset difficulty after this long
+const RETRY_DELAY_MS     = 3000; // 3s delay before starting a new sequence on pattern failure
 
 const COLOR_DEFAULT  = 0x333333;
 const COLOR_LIT      = 0xffd166; // golden
@@ -41,9 +42,10 @@ export class MemoryPuzzle {
 
     this.retrievalCount   = 0;
     this._forgetTimer     = null;
+    this._retryTimer      = null;
     this._sequence        = [];   // array of cell indices (0-8)
     this._playerInput     = [];   // player's taps so far
-    this._phase           = 'idle'; // 'idle' | 'showing' | 'input'
+    this._phase           = 'idle'; // 'idle' | 'showing' | 'input' | 'failing'
     this._cells           = [];   // THREE.Mesh[9]
     this._hitBoxes        = [];
 
@@ -123,6 +125,7 @@ export class MemoryPuzzle {
   hide() {
     this.group.visible = false;
     this._phase = 'idle';
+    clearTimeout(this._retryTimer);
     if (this.input) {
       this.input.clearModal();
     }
@@ -130,6 +133,7 @@ export class MemoryPuzzle {
 
   /** Start a new round. Generates sequence based on current retrievalCount. */
   start() {
+    clearTimeout(this._retryTimer);
     this.show();
     this._resetCellColors();
     this._generateSequence();
@@ -225,11 +229,19 @@ export class MemoryPuzzle {
       this._flashAll(COLOR_FAIL);
       audioManager.play('buzz');
       voiceManager.play('puzzle_fail');
-      this._phase = 'idle';
+      this._phase = 'failing';
       if (this.input) {
         this.input.clearModal();
       }
-      setTimeout(() => this.onFail(), 800);
+      this.onFail();
+
+      // Automatically retry with a new sequence after 3 seconds
+      clearTimeout(this._retryTimer);
+      this._retryTimer = setTimeout(() => {
+        if (this.group.visible && this._phase === 'failing') {
+          this.start();
+        }
+      }, RETRY_DELAY_MS);
     }
   }
 

@@ -195,8 +195,7 @@ export class StorageBin {
     this._puzzle = new MemoryPuzzle(puzzleAnchor, this.input, {
       onSuccess: () => this._openBin(),
       onFail:    () => {
-        // Re-enable door click so player can try again
-        gameState.transition(STATE.ORDER);
+        // Automatic retry loop will start a new sequence after 3 seconds
       },
     });
   }
