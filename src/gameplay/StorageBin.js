@@ -204,7 +204,17 @@ export class StorageBin {
 
   _onDoorClick() {
     // If puzzle is currently active or solving, ignore door clicks
-    if (gameState.isIn(STATE.PUZZLE) || (this._puzzle && this._puzzle._phase !== 'idle')) {
+    if (this._puzzle && this._puzzle._phase !== 'idle') {
+      return;
+    }
+
+    // If bin is already open, pick up the spawned item if available
+    if (this.isOpen) {
+      if (this._item && !this._item.carried) {
+        this._item._pickup();
+      } else if (!this._item) {
+        this._spawnItem();
+      }
       return;
     }
 
@@ -214,11 +224,6 @@ export class StorageBin {
       const orig = this._door.material.emissive.getHex();
       this._door.material.emissive.setHex(0xffd166);
       setTimeout(() => this._door.material.emissive.setHex(orig), 300);
-      return;
-    }
-
-    if (this.isOpen) {
-      this._spawnItem();
       return;
     }
 
@@ -255,6 +260,7 @@ export class StorageBin {
     this._animateDoorOpen();
     this._lockMesh.visible = false;
     this._spawnItem();
+    gameState.emit('binOpened');
   }
 
   _animateDoorOpen() {

@@ -117,10 +117,21 @@ export class InputManager {
     return this.renderer.xr.isPresenting ? this.renderer.xr.getCamera() : this.camera;
   }
 
+  _findFirstValidHit(hits) {
+    for (const h of hits) {
+      const interactable = this._findInteractable(h.object);
+      if (interactable) {
+        return { interactable, distance: h.distance };
+      }
+    }
+    return null;
+  }
+
   _castFromMouse() {
     this._raycaster.setFromCamera(this._mouse, this._getActiveCamera());
     const hits = this._raycaster.intersectObjects(this._getActiveInteractables(), true);
-    return hits.length > 0 ? this._findInteractable(hits[0].object) : null;
+    const valid = this._findFirstValidHit(hits);
+    return valid ? valid.interactable : null;
   }
 
   // ── Gaze Raycasting ──────────────────────────────────────────────────────
@@ -133,7 +144,8 @@ export class InputManager {
     this._raycaster.camera = cam;
     this._raycaster.set(_vOrigin, _vDirection);
     const hits = this._raycaster.intersectObjects(this._getActiveInteractables(), true);
-    return hits.length > 0 ? this._findInteractable(hits[0].object) : null;
+    const valid = this._findFirstValidHit(hits);
+    return valid ? valid.interactable : null;
   }
 
   // ── VR (controllers & hands) ─────────────────────────────────────────────
@@ -214,7 +226,8 @@ export class InputManager {
     this._raycaster.camera = this._getActiveCamera();
     this._raycaster.set(_vOrigin, _vDirection);
     const hits = this._raycaster.intersectObjects(this._getActiveInteractables(), true);
-    let hit = hits.length > 0 ? this._findInteractable(hits[0].object) : null;
+    const valid = this._findFirstValidHit(hits);
+    let hit = valid ? valid.interactable : null;
 
     if (hit) {
       const now = performance.now();
@@ -225,7 +238,7 @@ export class InputManager {
     // Update visual ray
     if (ctrl.userData.ray) {
       const rayLine = ctrl.userData.ray;
-      const rayLength = (hits.length > 0) ? hits[0].distance : 5.0;
+      const rayLength = valid ? valid.distance : (hits.length > 0 ? hits[0].distance : 5.0);
       const posAttr = rayLine.geometry.attributes.position;
       posAttr.setXYZ(0, 0, 0, 0);
       posAttr.setXYZ(1, 0, 0, -rayLength);
@@ -355,13 +368,9 @@ export class InputManager {
               this._raycaster.camera = this._getActiveCamera();
               this._raycaster.set(_vWorldRayOrigin, _vWorldRayDir);
               const hits = this._raycaster.intersectObjects(this._getActiveInteractables(), true);
-              let currentHit = null;
-              let rayLength = 5.0;
-
-              if (hits.length > 0) {
-                currentHit = this._findInteractable(hits[0].object);
-                rayLength = hits[0].distance;
-              }
+              const valid = this._findFirstValidHit(hits);
+              let currentHit = valid ? valid.interactable : null;
+              let rayLength = valid ? valid.distance : 5.0;
 
               if (currentHit) {
                 if (!primaryHandHit) primaryHandHit = currentHit;
@@ -394,11 +403,14 @@ export class InputManager {
                   const objWorldPos = new THREE.Vector3();
                   for (const obj of pool) {
                     if (obj.visible !== false) {
-                      obj.getWorldPosition(objWorldPos);
-                      const d = objWorldPos.distanceTo(_vWorldRayOrigin);
-                      if (d < closestDist) {
-                        closestDist = d;
-                        targetToSelect = this._findInteractable(obj);
+                      const validTarget = this._findInteractable(obj);
+                      if (validTarget) {
+                        obj.getWorldPosition(objWorldPos);
+                        const d = objWorldPos.distanceTo(_vWorldRayOrigin);
+                        if (d < closestDist) {
+                          closestDist = d;
+                          targetToSelect = validTarget;
+                        }
                       }
                     }
                   }

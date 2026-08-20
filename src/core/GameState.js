@@ -74,6 +74,10 @@ class GameState {
     this._listeners[event] = this._listeners[event].filter(f => f !== fn);
   }
 
+  emit(event, data = {}) {
+    this._emit(event, data);
+  }
+
   _emit(event, data = {}) {
     (this._listeners[event] || []).forEach(fn => fn(data));
   }

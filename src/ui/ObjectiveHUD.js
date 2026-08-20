@@ -50,6 +50,7 @@ export class ObjectiveHUD {
     // Subscribe to state changes
     gameState.on('change', () => this.updateState());
     gameState.on('order',  () => this.updateState());
+    gameState.on('binOpened', () => this.updateState());
   }
 
   updateState() {
@@ -76,7 +77,13 @@ export class ObjectiveHUD {
         break;
 
       case STATE.PUZZLE:
-        msg = '🧩 Watch & repeat the 3×3 light pattern to unlock the bin!';
+        if (gameState.activeBin && gameState.activeBin.isOpen) {
+          msg = active
+            ? `📦 Tap "${active.label}" to grab it!`
+            : '📦 Grab the item from the open bin!';
+        } else {
+          msg = '🧩 Watch & repeat the 3×3 light pattern to unlock the bin!';
+        }
         break;
 
       case STATE.CARRYING:

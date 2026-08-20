@@ -120,10 +120,14 @@ export class MemoryPuzzle {
 
   show() {
     this.group.visible = true;
+    this._cells.forEach(c => { c.visible = true; });
+    this._hitBoxes.forEach(hb => { hb.visible = true; });
   }
 
   hide() {
     this.group.visible = false;
+    this._cells.forEach(c => { c.visible = false; });
+    this._hitBoxes.forEach(hb => { hb.visible = false; });
     this._phase = 'idle';
     clearTimeout(this._retryTimer);
     if (this.input) {
