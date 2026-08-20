@@ -71,9 +71,9 @@ export class StorageBin {
     this._door.position.set(0, 0, 0.24);
     this.group.add(this._door);
 
-    // Large double-sided invisible hit box volume centered on bin door
+    // Invisible hit box volume precisely matched to the bin door dimensions (0.58m x 0.58m)
     const hitBox = new THREE.Mesh(
-      new THREE.BoxGeometry(0.85, 0.85, 0.3),
+      new THREE.BoxGeometry(0.58, 0.58, 0.08),
       new THREE.MeshBasicMaterial({
         transparent: true,
         opacity: 0,
@@ -129,7 +129,7 @@ export class StorageBin {
     this._taskBeacon.visible = false;
     this.group.add(this._taskBeacon);
 
-    // Register both door and enlarged hitBox for click/gaze
+    // Register both door and hitBox for click/gaze
     const onSelect = () => this._onDoorClick();
     const onHover  = (_, isHover) => {
       this._door.material.emissive = isHover
@@ -137,8 +137,8 @@ export class StorageBin {
         : new THREE.Color(0);
       if (this._lockMesh && this._lockMesh.children[0]) {
         this._lockMesh.children[0].material.emissiveIntensity = isHover ? 0.8 : 0;
+        this._lockMesh.scale.setScalar(isHover ? 1.08 : 1.0);
       }
-      this.group.scale.setScalar(isHover ? 1.03 : 1.0);
     };
 
     this._door.userData.onSelect = onSelect;
@@ -168,7 +168,9 @@ export class StorageBin {
       this._door.material.emissive = isHover
         ? new THREE.Color(CATEGORY_COLORS[this.itemData.category]).multiplyScalar(0.6)
         : new THREE.Color(0);
-      this.group.scale.setScalar(isHover ? 1.03 : 1.0);
+      if (this._lockMesh && this._lockMesh.children[0]) {
+        this._lockMesh.children[0].material.emissiveIntensity = isHover ? 0.8 : 0;
+      }
     };
     this.input.register(label);
   }
@@ -191,6 +193,11 @@ export class StorageBin {
   // ── Interaction ───────────────────────────────────────────────────────
 
   _onDoorClick() {
+    // If puzzle is currently active or solving, ignore door clicks
+    if (gameState.isIn(STATE.PUZZLE) || (this._puzzle && this._puzzle._phase !== 'idle')) {
+      return;
+    }
+
     // If no order is active yet
     if (!gameState.activeOrder) {
       audioManager.play('click');

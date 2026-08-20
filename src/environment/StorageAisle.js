@@ -116,26 +116,6 @@ export class StorageAisle {
     catLabel.position.set(x, topPlankY + 0.42, shelfZ + 0.04);
     this.group.add(catLabel);
 
-    // Category header interactive hover & click
-    const onHeaderHover = (_, isHover) => {
-      headerMat.emissiveIntensity = isHover ? 0.9 : 0.35;
-    };
-    const onHeaderSelect = () => {
-      // Find matching active bin in this aisle if any
-      const matchingBin = this.bins.find(b => b.itemData.category === category && gameState.activeOrder && b.itemData.id === gameState.activeOrder.id);
-      if (matchingBin) {
-        matchingBin._onDoorClick();
-      }
-    };
-
-    header.userData.onHover   = onHeaderHover;
-    header.userData.onSelect  = onHeaderSelect;
-    catLabel.userData.onHover = onHeaderHover;
-    catLabel.userData.onSelect = onHeaderSelect;
-
-    this.input.register(header);
-    this.input.register(catLabel);
-
     // ── 5. Storage Bins (Sitting directly on top of each shelf plank) ─────
     items.forEach((itemData, idx) => {
       const binY = BIN_START_Y + idx * BIN_SPACING_Y;

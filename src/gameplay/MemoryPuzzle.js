@@ -88,9 +88,9 @@ export class MemoryPuzzle {
       cell.userData.onHover = onHover;
       cell.userData.onSelect = onSelect;
 
-      // Centered invisible hitbox volume covering the cell and inter-tile margin
+      // Centered invisible hitbox volume covering the cell (0.22m x 0.22m)
       const cellHitBox = new THREE.Mesh(
-        new THREE.BoxGeometry(step, step, 0.08),
+        new THREE.BoxGeometry(step - 0.02, step - 0.02, 0.06),
         new THREE.MeshBasicMaterial({
           transparent: true,
           opacity: 0,
@@ -122,6 +122,9 @@ export class MemoryPuzzle {
   hide() {
     this.group.visible = false;
     this._phase = 'idle';
+    if (this.input) {
+      this.input.clearModal();
+    }
   }
 
   /** Start a new round. Generates sequence based on current retrievalCount. */
@@ -134,6 +137,11 @@ export class MemoryPuzzle {
       if (this._phase === 'showing') {
         this._phase = 'input';
         this._playerInput = [];
+        this._lastTapTime = 0;
+        // Lock input modal to puzzle cells only so background meshes can't intercept rays
+        if (this.input) {
+          this.input.setModal(this._cells.concat(this._hitBoxes));
+        }
       }
     });
     voiceManager.play('puzzle_start');
@@ -183,6 +191,15 @@ export class MemoryPuzzle {
   // ── Input phase ────────────────────────────────────────────────────────
 
   _handlePlayerTap(idx, cell) {
+    if (this._phase !== 'input') return;
+
+    const now = performance.now();
+    // Guard against rapid duplicate input events on the same tick (<150ms)
+    if (this._lastTapTime && (now - this._lastTapTime < 150)) {
+      return;
+    }
+    this._lastTapTime = now;
+
     const expected = this._sequence[this._playerInput.length];
 
     if (idx === expected) {
@@ -208,12 +225,18 @@ export class MemoryPuzzle {
       audioManager.play('buzz');
       voiceManager.play('puzzle_fail');
       this._phase = 'idle';
+      if (this.input) {
+        this.input.clearModal();
+      }
       setTimeout(() => this.onFail(), 800);
     }
   }
 
   _onComplete(success) {
     this._phase = 'idle';
+    if (this.input) {
+      this.input.clearModal();
+    }
     this._flashAll(COLOR_SUCCESS);
     audioManager.play('chime');
     voiceManager.play('puzzle_success');

@@ -154,7 +154,7 @@ export class InputManager {
         const now = performance.now();
         let target = hit;
 
-        // Check target retention buffer if instant ray missed due to pinch movement
+        // Check target retention buffer if instant ray missed due to trigger movement
         if (!target) {
           const buffered = this._lastHandTargetMap.get(ctrl) ||
                            (event && event.data && this._lastHandTargetMap.get(event.data)) ||
@@ -165,7 +165,7 @@ export class InputManager {
           }
         }
 
-        // Fallback: If hand ray missed during pinch, use current gaze target or hovered object
+        // Fallback: If controller ray missed, use current gaze target or hovered object
         if (!target) {
           if (this._hovered) target = this._hovered;
           else if (this._gazeTarget) target = this._gazeTarget;
@@ -176,8 +176,8 @@ export class InputManager {
         }
       };
 
+      // Listen to selectstart only on trigger press (avoid duplicate fire on release)
       ctrl.addEventListener('selectstart', handleSelect);
-      ctrl.addEventListener('select', handleSelect);
       parentContainer.add(ctrl);
 
       // Visual ray line for controller
@@ -195,39 +195,6 @@ export class InputManager {
 
       this._controllers.push(ctrl);
     }
-
-    // Also register session-level select listeners as a universal safeguard
-    renderer.xr.addEventListener('sessionstart', () => {
-      const session = renderer.xr.getSession();
-      if (!session) return;
-
-      const onSessionSelect = (event) => {
-        const now = performance.now();
-        let target = null;
-        if (event.inputSource) {
-          const buffered = this._lastHandTargetMap.get(event.inputSource) ||
-                           this._lastHandTargetMap.get(event.inputSource.handedness);
-          if (buffered && (now - buffered.time < TARGET_RETENTION_MS)) {
-            target = buffered.hit;
-          }
-        }
-        if (!target) {
-          const globalBuffered = this._lastHandTargetMap.get('global');
-          if (globalBuffered && (now - globalBuffered.time < TARGET_RETENTION_MS)) {
-            target = globalBuffered.hit;
-          }
-        }
-        if (!target) {
-          target = this._hovered || this._gazeTarget;
-        }
-        if (target) {
-          this._fireSelect(target);
-        }
-      };
-
-      session.addEventListener('selectstart', onSessionSelect);
-      session.addEventListener('select', onSessionSelect);
-    });
   }
 
   _castFromController(ctrl) {
