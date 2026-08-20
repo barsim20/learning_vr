@@ -130,6 +130,7 @@ export class InputManager {
     cam.getWorldPosition(_vOrigin);
     cam.getWorldDirection(_vDirection);
 
+    this._raycaster.camera = cam;
     this._raycaster.set(_vOrigin, _vDirection);
     const hits = this._raycaster.intersectObjects(this._getActiveInteractables(), true);
     return hits.length > 0 ? this._findInteractable(hits[0].object) : null;
@@ -194,6 +195,7 @@ export class InputManager {
     _vOrigin.setFromMatrixPosition(ctrl.matrixWorld);
     _vDirection.set(0, 0, -1).transformDirection(ctrl.matrixWorld).normalize();
 
+    this._raycaster.camera = this._getActiveCamera();
     this._raycaster.set(_vOrigin, _vDirection);
     const hits = this._raycaster.intersectObjects(this._getActiveInteractables(), true);
     let hit = hits.length > 0 ? this._findInteractable(hits[0].object) : null;
@@ -331,6 +333,7 @@ export class InputManager {
               }
 
               // Raycast along world ray
+              this._raycaster.camera = this._getActiveCamera();
               this._raycaster.set(_vWorldRayOrigin, _vWorldRayDir);
               const hits = this._raycaster.intersectObjects(this._getActiveInteractables(), true);
               let currentHit = null;
@@ -430,6 +433,7 @@ export class InputManager {
     let hit = null;
     const now = performance.now();
     const activeCamera = this._getActiveCamera();
+    this._raycaster.camera = activeCamera;
 
     // Ensure cameraRig world transform is synchronized
     if (this.cameraRig) {
