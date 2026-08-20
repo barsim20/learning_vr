@@ -44,6 +44,7 @@ export class MemoryPuzzle {
     this._playerInput     = [];   // player's taps so far
     this._phase           = 'idle'; // 'idle' | 'showing' | 'input'
     this._cells           = [];   // THREE.Mesh[9]
+    this._hitBoxes        = [];
 
     this.group = new THREE.Group();
     parent.add(this.group);
@@ -75,17 +76,39 @@ export class MemoryPuzzle {
       cell.userData.cellIndex = i;
 
       // Hover / select handlers wired through InputManager
-      cell.userData.onHover = (_, isHover) => {
+      const onHover = (_, isHover) => {
         if (this._phase !== 'input') return;
         cell.material.color.setHex(isHover ? COLOR_HOVER : COLOR_DEFAULT);
       };
-      cell.userData.onSelect = () => {
+      const onSelect = () => {
         if (this._phase !== 'input') return;
         this._handlePlayerTap(i, cell);
       };
 
+      cell.userData.onHover = onHover;
+      cell.userData.onSelect = onSelect;
+
+      // Centered invisible hitbox volume covering the cell and inter-tile margin
+      const cellHitBox = new THREE.Mesh(
+        new THREE.BoxGeometry(step, step, 0.08),
+        new THREE.MeshBasicMaterial({
+          transparent: true,
+          opacity: 0,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        }),
+      );
+      cellHitBox.position.set(0, 0, 0);
+      cellHitBox.userData.cellIndex = i;
+      cellHitBox.userData.onHover = onHover;
+      cellHitBox.userData.onSelect = onSelect;
+
+      cell.add(cellHitBox);
+
       this.input.register(cell);
+      this.input.register(cellHitBox);
       this._cells.push(cell);
+      this._hitBoxes.push(cellHitBox);
       this.group.add(cell);
     }
   }
@@ -256,5 +279,6 @@ export class MemoryPuzzle {
   dispose() {
     clearTimeout(this._forgetTimer);
     this._cells.forEach(c => this.input.unregister(c));
+    this._hitBoxes.forEach(hb => this.input.unregister(hb));
   }
 }

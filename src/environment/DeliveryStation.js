@@ -59,9 +59,9 @@ export class DeliveryStation {
     this._platform.castShadow = true;
     this.group.add(this._platform);
 
-    // Large double-sided invisible hit box volume
+    // Large double-sided invisible hit box volume centered on platform
     const hitBox = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.0, 1.0, 1.0, 16),
+      new THREE.CylinderGeometry(0.9, 0.9, 0.8, 16),
       new THREE.MeshBasicMaterial({
         transparent: true,
         opacity: 0,
@@ -69,8 +69,8 @@ export class DeliveryStation {
         side: THREE.DoubleSide,
       }),
     );
-    hitBox.position.y = 1.2;
-    this.group.add(hitBox);
+    hitBox.position.set(0, 0, 0);
+    this._platform.add(hitBox);
     this._hitBox = hitBox;
 
     // Station pedestal

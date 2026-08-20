@@ -107,7 +107,7 @@ export class ConceptOverlayManager {
     this.btnMesh.renderOrder = 992;
     this.overlayGroup.add(this.btnMesh);
 
-    // Generous transparent raycastable hit volume box for effortless gaze/pinch selection
+    // Generous transparent raycastable hit volume box centered on button
     const btnHitBox = new THREE.Mesh(
       new THREE.BoxGeometry(1.2, 0.45, 0.3),
       new THREE.MeshBasicMaterial({
@@ -117,8 +117,8 @@ export class ConceptOverlayManager {
         side: THREE.DoubleSide,
       })
     );
-    btnHitBox.position.set(0, -0.32, 0.04);
-    this.overlayGroup.add(btnHitBox);
+    btnHitBox.position.set(0, 0, 0);
+    this.btnMesh.add(btnHitBox);
     this.btnHitBox = btnHitBox;
 
     // Button interactions — acknowledge on selecting any part of the modal
@@ -382,16 +382,35 @@ export class ConceptOverlayManager {
     sprite.position.set(0, 0.22, 0);
     badgeGroup.add(sprite);
 
+    // Centered invisible hitbox volume covering badge disc and label
+    const badgeHitBox = new THREE.Mesh(
+      new THREE.BoxGeometry(0.5, 0.55, 0.25),
+      new THREE.MeshBasicMaterial({
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+    );
+    badgeHitBox.position.set(0, 0.11, 0);
+    badgeGroup.add(badgeHitBox);
+
     // Interactions
-    disc.userData.onHover = (_, isHover) => {
+    const onHover = (_, isHover) => {
       disc.material.emissiveIntensity = isHover ? 0.9 : 0.3;
       badgeGroup.scale.setScalar(isHover ? 1.15 : 1.0);
     };
-    disc.userData.onSelect = () => {
+    const onSelect = () => {
       this.trigger(conceptKey, parentObject, offset, true);
     };
 
+    disc.userData.onHover         = onHover;
+    disc.userData.onSelect        = onSelect;
+    badgeHitBox.userData.onHover  = onHover;
+    badgeHitBox.userData.onSelect = onSelect;
+
     this.input.register(disc);
+    this.input.register(badgeHitBox);
     this._badges.set(conceptKey, badgeGroup);
 
     return badgeGroup;

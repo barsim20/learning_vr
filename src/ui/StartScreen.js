@@ -97,20 +97,40 @@ export class StartScreen {
     btnLabel.position.z = 0.032;
     this._button.add(btnLabel);
 
+    // Centered invisible hitbox volume covering button
+    const btnHitBox = new THREE.Mesh(
+      new THREE.BoxGeometry(1.0, 0.36, 0.2),
+      new THREE.MeshBasicMaterial({
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+    );
+    btnHitBox.position.set(0, 0, 0);
+    this._button.add(btnHitBox);
+    this._btnHitBox = btnHitBox;
+
     // Hover & Click handlers
-    this._button.userData.onHover = (_, isHover) => {
+    const onHover = (_, isHover) => {
       this._button.material.emissiveIntensity = isHover ? 0.9 : 0.4;
       this._button.scale.setScalar(isHover ? 1.08 : 1.0);
     };
 
-    this._button.userData.onSelect = () => {
+    const onSelect = () => {
       audioManager.play('chime');
       voiceManager.play('welcome');
       this.hide();
       if (this.onStart) this.onStart();
     };
 
+    this._button.userData.onHover   = onHover;
+    this._button.userData.onSelect  = onSelect;
+    btnHitBox.userData.onHover      = onHover;
+    btnHitBox.userData.onSelect     = onSelect;
+
     this.input.register(this._button);
+    this.input.register(btnHitBox);
   }
 
   _draw() {
@@ -176,6 +196,7 @@ export class StartScreen {
   hide() {
     this.group.visible = false;
     this.input.unregister(this._button);
+    if (this._btnHitBox) this.input.unregister(this._btnHitBox);
   }
 
   update(camera) {

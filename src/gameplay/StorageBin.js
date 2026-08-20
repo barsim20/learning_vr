@@ -71,9 +71,9 @@ export class StorageBin {
     this._door.position.set(0, 0, 0.24);
     this.group.add(this._door);
 
-    // Large double-sided invisible hit box volume around bin door for generous gaze & pinch selection
+    // Large double-sided invisible hit box volume centered on bin door
     const hitBox = new THREE.Mesh(
-      new THREE.BoxGeometry(0.85, 0.85, 0.4),
+      new THREE.BoxGeometry(0.85, 0.85, 0.3),
       new THREE.MeshBasicMaterial({
         transparent: true,
         opacity: 0,
@@ -81,8 +81,8 @@ export class StorageBin {
         side: THREE.DoubleSide,
       }),
     );
-    hitBox.position.set(0, 0, 0.25);
-    this.group.add(hitBox);
+    hitBox.position.set(0, 0, 0);
+    this._door.add(hitBox);
 
     // Lock icon (prominent gold padlock on door face)
     const lockGroup = new THREE.Group();
