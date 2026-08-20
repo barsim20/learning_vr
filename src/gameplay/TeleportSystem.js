@@ -263,9 +263,11 @@ export class TeleportSystem {
       const dist = Math.hypot(playerPos.x - data.floorPos.x, playerPos.z - data.floorPos.z);
       const isCurrent = dist < 1.1;
 
-      // When standing at a node, hide its label and hit cylinder so it never blocks shelves or containers
+      // When standing at a node, hide its label and hit cylinder, and disable disc raycasts so it never blocks shelves or bottom containers
       label.visible = !isCurrent;
       hitCylinder.visible = !isCurrent;
+      disc.raycast = isCurrent ? noopRaycast : THREE.Mesh.prototype.raycast;
+      centerDot.raycast = isCurrent ? noopRaycast : THREE.Mesh.prototype.raycast;
 
       if (isCurrent) {
         centerDot.material.opacity = 0.2;
@@ -279,3 +281,5 @@ export class TeleportSystem {
     }
   }
 }
+
+function noopRaycast() {}

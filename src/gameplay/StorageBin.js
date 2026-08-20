@@ -71,9 +71,9 @@ export class StorageBin {
     this._door.position.set(0, 0, 0.24);
     this.group.add(this._door);
 
-    // Invisible hit box volume precisely matched to the bin door dimensions (0.58m x 0.58m)
+    // Hitbox volume precisely matched to the door face and protruding slightly forward (0.58m x 0.58m x 0.18m)
     const hitBox = new THREE.Mesh(
-      new THREE.BoxGeometry(0.58, 0.58, 0.08),
+      new THREE.BoxGeometry(0.58, 0.58, 0.18),
       new THREE.MeshBasicMaterial({
         transparent: true,
         opacity: 0,
@@ -81,7 +81,7 @@ export class StorageBin {
         side: THREE.DoubleSide,
       }),
     );
-    hitBox.position.set(0, 0, 0);
+    hitBox.position.set(0, 0, 0.05);
     this._door.add(hitBox);
 
     // Lock icon (prominent gold padlock on door face)
@@ -91,7 +91,7 @@ export class StorageBin {
     // Padlock body
     const lockBody = new THREE.Mesh(
       new THREE.BoxGeometry(0.14, 0.12, 0.05),
-      new THREE.MeshStandardMaterial({ color: 0xffd166, metalness: 0.8, roughness: 0.3 }),
+      new THREE.MeshStandardMaterial({ color: 0xffd166, metalness: 0.8, roughness: 0.3, emissive: 0xffd166, emissiveIntensity: 0 }),
     );
     lockGroup.add(lockBody);
 
@@ -129,15 +129,17 @@ export class StorageBin {
     this._taskBeacon.visible = false;
     this.group.add(this._taskBeacon);
 
-    // Register both door and hitBox for click/gaze
+    // Register all door face parts for click/gaze
     const onSelect = () => this._onDoorClick();
-    const onHover  = (_, isHover) => {
-      this._door.material.emissive = isHover
-        ? new THREE.Color(CATEGORY_COLORS[this.itemData.category]).multiplyScalar(0.6)
-        : new THREE.Color(0);
-      if (this._lockMesh && this._lockMesh.children[0]) {
-        this._lockMesh.children[0].material.emissiveIntensity = isHover ? 0.8 : 0;
-        this._lockMesh.scale.setScalar(isHover ? 1.08 : 1.0);
+    const catColorHex = CATEGORY_COLORS[this.itemData.category];
+    const onHover = (_, isHover) => {
+      this._door.material.emissive.setHex(catColorHex);
+      this._door.material.emissiveIntensity = isHover ? 0.75 : 0;
+      if (lockBody.material) {
+        lockBody.material.emissiveIntensity = isHover ? 0.9 : 0;
+      }
+      if (this._lockMesh) {
+        this._lockMesh.scale.setScalar(isHover ? 1.1 : 1.0);
       }
     };
 
@@ -145,10 +147,19 @@ export class StorageBin {
     this._door.userData.onHover  = onHover;
     hitBox.userData.onSelect     = onSelect;
     hitBox.userData.onHover      = onHover;
+    lockBody.userData.onSelect   = onSelect;
+    lockBody.userData.onHover    = onHover;
+    shackle.userData.onSelect    = onSelect;
+    shackle.userData.onHover     = onHover;
+    this._taskBeacon.userData.onSelect = onSelect;
+    this._taskBeacon.userData.onHover  = onHover;
 
     this._hitBox = hitBox;
     this.input.register(this._door);
     this.input.register(hitBox);
+    this.input.register(lockBody);
+    this.input.register(shackle);
+    this.input.register(this._taskBeacon);
   }
 
   _buildLabel() {
