@@ -46,17 +46,9 @@ export class VRSession {
   }
 
   async _startVR() {
-    let session = null;
-    try {
-      session = await navigator.xr.requestSession('immersive-vr', {
-        requiredFeatures: ['local-floor'],
-        optionalFeatures: ['hand-tracking', 'bounded-floor', 'layers'],
-      });
-    } catch (e) {
-      session = await navigator.xr.requestSession('immersive-vr', {
-        optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking', 'layers'],
-      });
-    }
+    const session = await navigator.xr.requestSession('immersive-vr', {
+      optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'],
+    });
 
     if (this.cameraRig) {
       this.cameraRig.position.set(0, 0, -2.0); // Store Manager position behind counter

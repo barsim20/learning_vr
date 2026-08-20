@@ -184,31 +184,6 @@ export class InputManager {
       ctrl.userData.ray = line;
 
       this._controllers.push(ctrl);
-
-      // 2. Hand Space (enables Three.js hand joints & pinch events)
-      const hand = renderer.xr.getHand(i);
-      hand.addEventListener('pinchstart', () => {
-        if (this.cameraRig) this.cameraRig.updateMatrixWorld(true);
-        ctrl.updateMatrixWorld(true);
-
-        const hit = this._castFromController(ctrl);
-        const now = performance.now();
-        let target = hit;
-
-        if (!target) {
-          const buffered = this._lastHandTargetMap.get(ctrl) || this._lastHandTargetMap.get(hand);
-          if (buffered && (now - buffered.time < TARGET_RETENTION_MS)) {
-            target = buffered.hit;
-          }
-        }
-
-        if (target) {
-          this._fireSelect(target);
-        }
-      });
-
-      parentContainer.add(hand);
-      this._hands.push(hand);
     }
   }
 
