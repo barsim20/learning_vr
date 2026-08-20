@@ -10,10 +10,8 @@
  */
 
 import * as THREE from 'three';
-import { GazeReticle } from '../ui/GazeReticle.js';
 import { audioManager } from './AudioManager.js';
 
-const DWELL_TIME_MS = 1000; // 1 second continuous gaze triggers selection
 const PINCH_THRESHOLD_START = 0.045; // 4.5 cm: pinch activates reliably
 const PINCH_THRESHOLD_RELEASE = 0.060; // 6.0 cm: pinch releases (hysteresis)
 const TARGET_RETENTION_MS = 450; // 450ms buffer for hand twitch during pinch
@@ -47,12 +45,6 @@ export class InputManager {
     this._raycaster    = new THREE.Raycaster();
     this._mouse        = new THREE.Vector2();
     this._hovered      = null;
-
-    // Gaze Dwell tracking
-    this.reticle       = new GazeReticle(camera, scene);
-    this._gazeTarget   = null;
-    this._gazeStartTime = 0;
-    this._gazeTriggered = false;
 
     // Hand tracking & Controller state
     this._pinchingHands = new Set(); // set of handedness keys currently pinching
@@ -134,20 +126,6 @@ export class InputManager {
     return valid ? valid.interactable : null;
   }
 
-  // ── Gaze Raycasting ──────────────────────────────────────────────────────
-
-  _castFromCamera() {
-    const cam = this._getActiveCamera();
-    cam.getWorldPosition(_vOrigin);
-    cam.getWorldDirection(_vDirection);
-
-    this._raycaster.camera = cam;
-    this._raycaster.set(_vOrigin, _vDirection);
-    const hits = this._raycaster.intersectObjects(this._getActiveInteractables(), true);
-    const valid = this._findFirstValidHit(hits);
-    return valid ? valid.interactable : null;
-  }
-
   // ── VR (controllers & hands) ─────────────────────────────────────────────
 
   _setupVR() {
@@ -177,10 +155,9 @@ export class InputManager {
           }
         }
 
-        // Fallback: If controller ray missed, use current gaze target or hovered object
-        if (!target) {
-          if (this._hovered) target = this._hovered;
-          else if (this._gazeTarget) target = this._gazeTarget;
+        // Fallback: If controller ray missed, use hovered object
+        if (!target && this._hovered) {
+          target = this._hovered;
         }
 
         if (target) {
@@ -426,10 +403,9 @@ export class InputManager {
                   }
                 }
 
-                // 3. Fallback: If no direct hand ray hit on pinch, select current gaze or hovered target
-                if (!targetToSelect) {
-                  if (this._hovered) targetToSelect = this._hovered;
-                  else if (this._gazeTarget) targetToSelect = this._gazeTarget;
+                // 3. Fallback: If no direct hand ray hit on pinch, select hovered target
+                if (!targetToSelect && this._hovered) {
+                  targetToSelect = this._hovered;
                 }
 
                 if (targetToSelect) {
@@ -516,39 +492,7 @@ export class InputManager {
       }
     }
 
-    // 2. Gaze Dwell (Head Tracking)
-    // Only perform gaze dwell auto-select when no modal overlay is active
-    const isModalActive = !!this._modalInteractables;
-    const gazeHit = this._castFromCamera();
-    if (!hit && gazeHit) {
-      hit = gazeHit;
-    }
-
-    // Process Gaze Dwell Progress & Auto-Select (disabled during modal cards so reading never auto-dismisses)
-    if (gazeHit && !isModalActive) {
-      if (this._gazeTarget !== gazeHit) {
-        this._gazeTarget = gazeHit;
-        this._gazeStartTime = now;
-        this._gazeTriggered = false;
-      } else if (!this._gazeTriggered) {
-        const elapsed = now - this._gazeStartTime;
-        const progress = Math.min(elapsed / DWELL_TIME_MS, 1.0);
-
-        this.reticle.setProgress(progress, true);
-
-        if (progress >= 1.0) {
-          this._gazeTriggered = true;
-          this._fireSelect(gazeHit);
-          this.reticle.setProgress(0, true);
-        }
-      }
-    } else {
-      this._gazeTarget = null;
-      this._gazeTriggered = false;
-      this.reticle.setProgress(0, false);
-    }
-
-    // 3. Process Desktop Hover
+    // 2. Process Desktop Hover
     if (!this.renderer.xr.isPresenting && !hit) {
       hit = this._castFromMouse();
     }
