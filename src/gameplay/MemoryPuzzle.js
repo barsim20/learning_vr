@@ -14,6 +14,7 @@ import * as THREE from 'three';
 import { audioManager } from '../core/AudioManager.js';
 import { voiceManager } from '../core/VoiceManager.js';
 import { conceptOverlayManager } from '../ui/ConceptOverlayManager.js';
+import { gameState } from '../core/GameState.js';
 
 const SEQUENCE_LENGTH_BY_COUNT = [5, 4, 3, 2, 1]; // indexed by retrievalCount (clamped to array length)
 const SHOW_INTERVAL_MS   = 600;  // ms between each square lighting up during show phase
