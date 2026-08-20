@@ -222,7 +222,7 @@ export class StorageBin {
 
     // Trigger Working Memory concept overlay and only start puzzle on dismiss
     if (gameState.shouldTriggerConcept('bin_working_memory')) {
-      conceptOverlayManager.trigger('bin_working_memory', this.group, new THREE.Vector3(0, 0.7, 0), false, () => {
+      conceptOverlayManager.trigger('bin_working_memory', () => {
         startPuzzle();
       });
     } else {

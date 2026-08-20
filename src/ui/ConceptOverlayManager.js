@@ -23,9 +23,8 @@ export class ConceptOverlayManager {
    * @param {InputManager} [input]
    */
   constructor(scene = null, camera = null, input = null) {
-    this.activeOverlay = null;
     this.activeKey = null;
-    this._badges = new Map(); // conceptKey -> THREE.Group
+    this._onDismissCallback = null;
 
     if (scene && camera && input) {
       this.init(scene, camera, input);
@@ -121,7 +120,7 @@ export class ConceptOverlayManager {
     this.btnMesh.add(btnHitBox);
     this.btnHitBox = btnHitBox;
 
-    // Button interactions — acknowledge on selecting any part of the modal
+    // Explicit user click/pinch on button dismisses the overlay
     const onAcknowledge = () => {
       this._onAcknowledge();
     };
@@ -134,10 +133,12 @@ export class ConceptOverlayManager {
     this.btnMesh.userData.onSelect  = onAcknowledge;
     btnHitBox.userData.onHover      = onButtonHover;
     btnHitBox.userData.onSelect     = onAcknowledge;
-    this.cardMesh.userData.onHover  = onButtonHover;
-    this.cardMesh.userData.onSelect = onAcknowledge;
+
+    // Backdrop & Card absorb raycasts to block world interactions, but do NOT auto-dismiss
+    this.cardMesh.userData.onHover  = () => {};
+    this.cardMesh.userData.onSelect = () => {};
     this.backdrop.userData.onHover  = () => {};
-    this.backdrop.userData.onSelect = onAcknowledge;
+    this.backdrop.userData.onSelect = () => {};
 
     this.input.register(this.btnMesh);
     this.input.register(btnHitBox);
@@ -253,25 +254,28 @@ export class ConceptOverlayManager {
   // ── Overlay Trigger & Dismissal ───────────────────────────────────────────
 
   /**
-   * Trigger a concept overlay.
+   * Trigger a concept overlay. Shows automatically the first time (unless forceShow is true).
    * @param {string} conceptKey   key from CONCEPT_EXPLANATIONS
-   * @param {THREE.Object3D} [anchorObject]  object near which to place persistent badge
-   * @param {THREE.Vector3} [badgeOffset]     offset for badge position
-   * @param {boolean} [forceShow=false]      force show even if seen (e.g. from badge click)
-   * @param {Function} [onDismiss=null]      callback when overlay is dismissed
+   * @param {THREE.Object3D|null} [_anchorObject=null] (kept for compatibility)
+   * @param {THREE.Vector3|null} [_badgeOffset=null]  (kept for compatibility)
+   * @param {boolean} [forceShow=false]
+   * @param {Function} [onDismiss=null] callback when overlay is consciously dismissed by click
    */
-  trigger(conceptKey, anchorObject = null, badgeOffset = new THREE.Vector3(0, 0.8, 0), forceShow = false, onDismiss = null) {
+  trigger(conceptKey, _anchorObject = null, _badgeOffset = null, forceShow = false, onDismiss = null) {
+    // Support trigger(key, onDismiss) shorthand
+    if (typeof _anchorObject === 'function') {
+      onDismiss = _anchorObject;
+      _anchorObject = null;
+    }
+
     const conceptData = CONCEPT_EXPLANATIONS[conceptKey];
     if (!conceptData) {
       if (onDismiss) onDismiss();
       return;
     }
 
+    // Only show automatically if never seen before in the game (or if forced)
     if (!forceShow && !gameState.shouldTriggerConcept(conceptKey)) {
-      // Already seen, ensure badge exists near object if provided
-      if (anchorObject) {
-        this.ensureBadge(conceptKey, anchorObject, badgeOffset);
-      }
       if (onDismiss) onDismiss();
       return;
     }
@@ -280,13 +284,11 @@ export class ConceptOverlayManager {
     gameState.recordConceptShown(conceptKey);
 
     this.activeKey = conceptKey;
-    this._targetAnchor = anchorObject;
-    this._badgeOffset  = badgeOffset;
     this._onDismissCallback = onDismiss;
 
     this._renderCardContent(conceptData);
 
-    // Position overlay in front of camera immediately (0.95m distance is ideal in VR)
+    // Position overlay in front of camera (0.95m distance in VR/desktop)
     if (this.camera) {
       this.camera.getWorldPosition(_overlayPos);
       this.camera.getWorldQuaternion(_overlayQuat);
@@ -304,11 +306,6 @@ export class ConceptOverlayManager {
 
   _onAcknowledge() {
     audioManager.play('ding');
-    const key = this.activeKey;
-
-    if (this._targetAnchor && key) {
-      this.ensureBadge(key, this._targetAnchor, this._badgeOffset);
-    }
 
     const cb = this._onDismissCallback;
     this._onDismissCallback = null;
@@ -323,110 +320,9 @@ export class ConceptOverlayManager {
   hideOverlay() {
     this.overlayGroup.visible = false;
     this.activeKey = null;
-    this._targetAnchor = null;
     if (this.input) {
       this.input.clearModal();
     }
-  }
-
-  // ── Persistent 🧠 Badge Creation ──────────────────────────────────────────
-
-  /** Create or retrieve a persistent "🧠" badge near an object */
-  ensureBadge(conceptKey, parentObject, offset = new THREE.Vector3(0, 0.8, 0)) {
-    if (this._badges.has(conceptKey)) {
-      const badge = this._badges.get(conceptKey);
-      badge.visible = true;
-      return badge;
-    }
-
-    const conceptData = CONCEPT_EXPLANATIONS[conceptKey];
-    if (!conceptData) return null;
-
-    const badgeGroup = new THREE.Group();
-    badgeGroup.position.copy(offset);
-    parentObject.add(badgeGroup);
-
-    // Disc background
-    const disc = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.18, 0.18, 0.03, 24),
-      new THREE.MeshStandardMaterial({
-        color: 0xffd166,
-        emissive: 0xffd166,
-        emissiveIntensity: 0.3,
-        roughness: 0.4,
-      }),
-    );
-    disc.rotation.x = Math.PI / 2;
-    badgeGroup.add(disc);
-
-    // Glowing ring
-    const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(0.2, 0.02, 12, 24),
-      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 }),
-    );
-    ring.rotation.x = Math.PI / 2;
-    badgeGroup.add(ring);
-
-    // Canvas label with "🧠 LEARN MORE"
-    const canvas = document.createElement('canvas');
-    canvas.width = 200;
-    canvas.height = 100;
-    const ctx = canvas.getContext('2d');
-
-    ctx.fillStyle = 'rgba(20,10,0,0.85)';
-    roundRect(ctx, 4, 4, 192, 92, 16);
-    ctx.fill();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = '#ffd166';
-    ctx.stroke();
-
-    ctx.font = 'bold 36px sans-serif';
-    ctx.fillStyle = '#ffffff';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('🧠 CONCEPT', 100, 50);
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.generateMipmaps = false;
-    texture.minFilter = THREE.LinearFilter;
-    const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
-    const sprite = new THREE.Sprite(spriteMat);
-    sprite.scale.set(0.4, 0.2, 1);
-    sprite.position.set(0, 0.22, 0);
-    badgeGroup.add(sprite);
-
-    // Centered invisible hitbox volume covering badge disc and label
-    const badgeHitBox = new THREE.Mesh(
-      new THREE.BoxGeometry(0.5, 0.55, 0.25),
-      new THREE.MeshBasicMaterial({
-        transparent: true,
-        opacity: 0,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-      }),
-    );
-    badgeHitBox.position.set(0, 0.11, 0);
-    badgeGroup.add(badgeHitBox);
-
-    // Interactions
-    const onHover = (_, isHover) => {
-      disc.material.emissiveIntensity = isHover ? 0.9 : 0.3;
-      badgeGroup.scale.setScalar(isHover ? 1.15 : 1.0);
-    };
-    const onSelect = () => {
-      this.trigger(conceptKey, parentObject, offset, true);
-    };
-
-    disc.userData.onHover         = onHover;
-    disc.userData.onSelect        = onSelect;
-    badgeHitBox.userData.onHover  = onHover;
-    badgeHitBox.userData.onSelect = onSelect;
-
-    this.input.register(disc);
-    this.input.register(badgeHitBox);
-    this._badges.set(conceptKey, badgeGroup);
-
-    return badgeGroup;
   }
 
   // ── Main Update Loop ──────────────────────────────────────────────────────
@@ -436,18 +332,11 @@ export class ConceptOverlayManager {
     camera.getWorldPosition(_overlayPos);
     camera.getWorldQuaternion(_overlayQuat);
 
-    // Keep overlay positioned and aligned 0.95m in front of camera
+    // Keep overlay positioned and aligned 0.95m in front of camera while open
     if (this.overlayGroup.visible) {
       _overlayOffset.set(0, 0, -0.95).applyQuaternion(_overlayQuat);
       this.overlayGroup.position.copy(_overlayPos).add(_overlayOffset);
       this.overlayGroup.quaternion.copy(_overlayQuat);
-    }
-
-    // Billboard persistent badges to face camera
-    for (const badge of this._badges.values()) {
-      if (badge.visible) {
-        badge.lookAt(_overlayPos);
-      }
     }
   }
 }

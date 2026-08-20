@@ -120,22 +120,21 @@ export class DeliveryStation {
 
     const isCorrect = gameState.carriedItem.id === gameState.activeOrder.id;
 
+    const conceptKey = isCorrect ? 'deliver_successful_recall' : 'deliver_wrong_forgetting';
+
     if (isCorrect) {
       gameState.addScore();
       voiceManager.play('deliver_success');
       audioManager.play('chime');
       this._celebrate();
-      conceptOverlayManager.trigger('deliver_successful_recall', this.group, new THREE.Vector3(0, 1.8, 0));
     } else {
       gameState.breakStreak();
       voiceManager.play('deliver_wrong');
       audioManager.play('buzz');
       this._wrongFlash();
-      conceptOverlayManager.trigger('deliver_wrong_forgetting', this.group, new THREE.Vector3(0, 1.8, 0));
     }
 
-    // Brief pause then next order
-    setTimeout(() => {
+    const finalizeDelivery = () => {
       // Clean up the carried item mesh
       if (gameState._carriedItemRef) {
         gameState._carriedItemRef.dispose();
@@ -144,7 +143,17 @@ export class DeliveryStation {
       gameState.carriedItem   = null;
       gameState.activeOrder   = null;
       gameState.transition(STATE.RESULT);
-    }, 1800);
+    };
+
+    if (gameState.shouldTriggerConcept(conceptKey)) {
+      conceptOverlayManager.trigger(conceptKey, () => {
+        finalizeDelivery();
+      });
+    } else {
+      setTimeout(() => {
+        finalizeDelivery();
+      }, 1400);
+    }
   }
 
   _celebrate() {

@@ -521,13 +521,15 @@ export class InputManager {
     }
 
     // 2. Gaze Dwell (Head Tracking)
+    // Only perform gaze dwell auto-select when no modal overlay is active
+    const isModalActive = !!this._modalInteractables;
     const gazeHit = this._castFromCamera();
     if (!hit && gazeHit) {
       hit = gazeHit;
     }
 
-    // Process Gaze Dwell Progress & Auto-Select
-    if (gazeHit) {
+    // Process Gaze Dwell Progress & Auto-Select (disabled during modal cards so reading never auto-dismisses)
+    if (gazeHit && !isModalActive) {
       if (this._gazeTarget !== gazeHit) {
         this._gazeTarget = gazeHit;
         this._gazeStartTime = now;

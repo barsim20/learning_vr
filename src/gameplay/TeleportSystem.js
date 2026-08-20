@@ -246,12 +246,9 @@ export class TeleportSystem {
         this._isTeleporting = false;
         this._currentRigPos.copy(targetPos);
 
-        // After reaching aisle, ensure 🧠 concept badge is placed nearby without disrupting flow
+        // After reaching aisle, trigger storage_search concept overlay automatically once
         if (data && ['math', 'food', 'sports'].includes(data.id)) {
-          const targetNode = this._nodes.find(n => n.data.id === data.id);
-          if (targetNode) {
-            conceptOverlayManager.ensureBadge('storage_search', targetNode.nodeGroup, new THREE.Vector3(0, 1.2, 0));
-          }
+          conceptOverlayManager.trigger('storage_search');
         }
       }
     }
@@ -262,18 +259,22 @@ export class TeleportSystem {
       ? this.cameraRig.position
       : this.camera.position;
 
-    for (const { centerDot, ring, discMat, data } of this._nodes) {
+    for (const { centerDot, ring, discMat, label, hitCylinder, data } of this._nodes) {
       const dist = Math.hypot(playerPos.x - data.floorPos.x, playerPos.z - data.floorPos.z);
       const isCurrent = dist < 1.1;
 
-      // Dim current standing node slightly so it doesn't distract
+      // When standing at a node, hide its label and hit cylinder so it never blocks shelves or containers
+      label.visible = !isCurrent;
+      hitCylinder.visible = !isCurrent;
+
       if (isCurrent) {
-        centerDot.material.opacity = 0.3;
-        ring.material.opacity = 0.3;
-        discMat.emissiveIntensity = 0.2;
+        centerDot.material.opacity = 0.2;
+        ring.material.opacity = 0.2;
+        discMat.emissiveIntensity = 0.15;
       } else {
         centerDot.material.opacity = 0.6 + Math.sin(time) * 0.25;
         ring.material.opacity = 0.7 + Math.cos(time) * 0.2;
+        discMat.emissiveIntensity = 0.5;
       }
     }
   }

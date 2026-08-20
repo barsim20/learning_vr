@@ -223,22 +223,31 @@ export class MemoryPuzzle {
     const timeSinceLast = this._lastRetrievalTime ? (now - this._lastRetrievalTime) : 0;
     this._lastRetrievalTime = now;
 
+    let conceptKey = 'puzzle_ltp';
     if (timeSinceLast > 45000 && timeSinceLast < FORGET_TIMEOUT_MS) {
-      conceptOverlayManager.trigger('puzzle_spacing', this.group, new THREE.Vector3(0, 0.5, 0));
+      conceptKey = 'puzzle_spacing';
     } else if (this.retrievalCount === 0) {
-      conceptOverlayManager.trigger('puzzle_effortful_retrieval', this.group, new THREE.Vector3(0, 0.5, 0));
+      conceptKey = 'puzzle_effortful_retrieval';
+    }
+
+    const finishPuzzle = () => {
+      this.hide();
+      this.onSuccess();
+    };
+
+    if (gameState.shouldTriggerConcept(conceptKey)) {
+      conceptOverlayManager.trigger(conceptKey, () => {
+        finishPuzzle();
+      });
     } else {
-      conceptOverlayManager.trigger('puzzle_ltp', this.group, new THREE.Vector3(0, 0.5, 0));
+      setTimeout(() => {
+        finishPuzzle();
+      }, 700);
     }
 
     // Update retrieval tracking
     this.retrievalCount++;
     this._resetForgetTimer();
-
-    setTimeout(() => {
-      this.hide();
-      this.onSuccess();
-    }, 700);
   }
 
   // ── Forgetting timer ────────────────────────────────────────────────────
@@ -247,7 +256,7 @@ export class MemoryPuzzle {
     clearTimeout(this._forgetTimer);
     this._forgetTimer = setTimeout(() => {
       if (this.retrievalCount > 0) {
-        conceptOverlayManager.trigger('puzzle_forgetting', this.group, new THREE.Vector3(0, 0.5, 0));
+        conceptOverlayManager.trigger('puzzle_forgetting');
       }
       this.retrievalCount = 0; // forgotten — reset difficulty
     }, FORGET_TIMEOUT_MS);

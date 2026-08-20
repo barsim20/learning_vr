@@ -170,7 +170,7 @@ export class CustomerNPC {
     this.group.visible = true;
     this._bubble.show(`"${orderText}"`);
     voiceManager.play('order', category);
-    conceptOverlayManager.trigger('customer_order', this.group, new THREE.Vector3(-0.85, 2.25, 0));
+    conceptOverlayManager.trigger('customer_order');
   }
 
   hide() {
