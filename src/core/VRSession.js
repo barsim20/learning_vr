@@ -46,13 +46,22 @@ export class VRSession {
   }
 
   async _startVR() {
-    const session = await navigator.xr.requestSession('immersive-vr', {
-      optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'],
-    });
+    let session = null;
+    try {
+      session = await navigator.xr.requestSession('immersive-vr', {
+        requiredFeatures: ['local-floor'],
+        optionalFeatures: ['hand-tracking', 'bounded-floor', 'layers'],
+      });
+    } catch (e) {
+      session = await navigator.xr.requestSession('immersive-vr', {
+        optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking', 'layers'],
+      });
+    }
 
     if (this.cameraRig) {
       this.cameraRig.position.set(0, 0, -2.0); // Store Manager position behind counter
       this.cameraRig.rotation.set(0, 0, 0); // Keep identity rotation for 1:1 natural physical head tracking
+      this.cameraRig.updateMatrixWorld(true);
       this.camera.position.set(0, 0, 0);
       this.camera.rotation.set(0, 0, 0);
     }

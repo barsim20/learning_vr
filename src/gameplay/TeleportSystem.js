@@ -73,12 +73,17 @@ export class TeleportSystem {
       centerDot.position.y = 0.005;
       nodeGroup.add(centerDot);
 
-      // Generous invisible raycastable hit volume cylinder (1.6m diameter, 0.8m height)
+      // Generous double-sided raycastable hit volume cylinder (2.0m diameter, 1.8m height)
       const hitCylinder = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.8, 0.8, 0.8, 16),
-        new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }),
+        new THREE.CylinderGeometry(1.0, 1.0, 1.8, 16),
+        new THREE.MeshBasicMaterial({
+          transparent: true,
+          opacity: 0,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        }),
       );
-      hitCylinder.position.y = 0.4;
+      hitCylinder.position.y = 0.9;
       nodeGroup.add(hitCylinder);
 
       // Floating label above node
@@ -109,10 +114,13 @@ export class TeleportSystem {
       centerDot.userData.onSelect   = onSelect;
       hitCylinder.userData.onHover  = onHover;
       hitCylinder.userData.onSelect = onSelect;
+      label.userData.onHover        = onHover;
+      label.userData.onSelect       = onSelect;
 
       this.input.register(disc);
       this.input.register(centerDot);
       this.input.register(hitCylinder);
+      this.input.register(label);
       this.group.add(nodeGroup);
       this._nodes.push({ disc, discMat, centerDot, data });
     }
@@ -140,6 +148,7 @@ export class TeleportSystem {
         const easeT = t * (2 - t); // ease-out quad
 
         this.cameraRig.position.lerpVectors(startRigPos, targetRigPos, easeT);
+        this.cameraRig.updateMatrixWorld(true);
 
         if (t < 1) {
           requestAnimationFrame(tickVR);

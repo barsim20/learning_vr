@@ -34,9 +34,10 @@ export class DeliveryStation {
 
     // Enable/disable based on game state
     gameState.on('change', ({ to }) => {
-      this._platform.userData.onSelect = to === STATE.CARRYING
-        ? () => this._onDeliver()
-        : null;
+      const onDeliverHandler = to === STATE.CARRYING ? () => this._onDeliver() : null;
+      this._platform.userData.onSelect = onDeliverHandler;
+      if (this._hitBox) this._hitBox.userData.onSelect = onDeliverHandler;
+      if (this._label) this._label.userData.onSelect = onDeliverHandler;
 
       // Visual cue — glow when player is carrying
       this._platform.material.emissiveIntensity = to === STATE.CARRYING ? 0.5 : 0;
@@ -58,13 +59,19 @@ export class DeliveryStation {
     this._platform.castShadow = true;
     this.group.add(this._platform);
 
-    // Large invisible hit box volume
+    // Large double-sided invisible hit box volume
     const hitBox = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.9, 0.9, 0.6, 16),
-      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }),
+      new THREE.CylinderGeometry(1.0, 1.0, 1.0, 16),
+      new THREE.MeshBasicMaterial({
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
     );
-    hitBox.position.y = 1.1;
+    hitBox.position.y = 1.2;
     this.group.add(hitBox);
+    this._hitBox = hitBox;
 
     // Station pedestal
     const pedestal = new THREE.Mesh(
@@ -83,6 +90,7 @@ export class DeliveryStation {
     });
     label.position.set(0, 1.35, 0);
     this.group.add(label);
+    this._label = label;
 
     // Register for input
     const onSelect = () => this._onDeliver();
@@ -96,9 +104,12 @@ export class DeliveryStation {
     this._platform.userData.onHover  = onHover;
     hitBox.userData.onSelect         = onSelect;
     hitBox.userData.onHover          = onHover;
+    label.userData.onSelect          = onSelect;
+    label.userData.onHover           = onHover;
 
     this.input.register(this._platform);
     this.input.register(hitBox);
+    this.input.register(label);
   }
 
   _onDeliver() {

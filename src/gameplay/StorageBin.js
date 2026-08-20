@@ -71,10 +71,15 @@ export class StorageBin {
     this._door.position.set(0, 0, 0.24);
     this.group.add(this._door);
 
-    // Large invisible hit box volume around bin door for generous gaze & pinch selection
+    // Large double-sided invisible hit box volume around bin door for generous gaze & pinch selection
     const hitBox = new THREE.Mesh(
       new THREE.BoxGeometry(0.85, 0.85, 0.4),
-      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }),
+      new THREE.MeshBasicMaterial({
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
     );
     hitBox.position.set(0, 0, 0.25);
     this.group.add(hitBox);
@@ -152,6 +157,15 @@ export class StorageBin {
     });
     label.position.set(0, 0.38, 0.26);
     this.group.add(label);
+    this._label = label;
+
+    label.userData.onSelect = () => this._onDoorClick();
+    label.userData.onHover  = (_, isHover) => {
+      this._door.material.emissive = isHover
+        ? new THREE.Color(CATEGORY_COLORS[this.itemData.category]).multiplyScalar(0.4)
+        : new THREE.Color(0);
+    };
+    this.input.register(label);
   }
 
   _buildPuzzle() {
@@ -273,6 +287,7 @@ export class StorageBin {
   dispose() {
     this.input.unregister(this._door);
     if (this._hitBox) this.input.unregister(this._hitBox);
+    if (this._label) this.input.unregister(this._label);
     this._puzzle.dispose();
     if (this._item) this._item.dispose();
     this.scene.remove(this.group);

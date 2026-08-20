@@ -2,8 +2,8 @@
  * InputManager.js
  * Multi-modal Input Manager:
  *  - Gaze Dwell (hands-free head tracking with progress reticle)
- *  - WebXR Hand Pinch (gesture control)
- *  - VR Controller Raycasting
+ *  - WebXR Hand Pinch (gesture control with Quest 3 joint tracking & target retention)
+ *  - VR Controller Raycasting (with matrix world synchronization)
  *  - Desktop Mouse Click
  *
  * Emits: 'select', 'hover' events on interactive objects.
@@ -14,6 +14,10 @@ import { GazeReticle } from '../ui/GazeReticle.js';
 import { audioManager } from './AudioManager.js';
 
 const DWELL_TIME_MS = 1000; // 1 second continuous gaze triggers selection
+const PINCH_THRESHOLD_START = 0.038; // 3.8 cm: pinch activates
+const PINCH_THRESHOLD_RELEASE = 0.050; // 5.0 cm: pinch releases (hysteresis)
+const TARGET_RETENTION_MS = 350; // 350ms buffer for hand twitch during pinch
+const SELECT_DEBOUNCE_MS = 250; // 250ms debounce between select clicks
 
 // Reusable scratch objects to eliminate per-frame GC allocations
 const _vOrigin = new THREE.Vector3();
@@ -50,12 +54,16 @@ export class InputManager {
     this._gazeStartTime = 0;
     this._gazeTriggered = false;
 
-    // Hand tracking state
+    // Hand tracking & Controller state
     this._pinchingHands = new Set(); // set of inputSource hands currently pinching
-    this._lastHandTarget = null; // { hit, time } for pinch target retention
+    this._lastHandTargetMap = new Map(); // source/ctrl -> { hit, time } for pinch target retention
+    this._lastSelectTime = 0;
+    this._lastSelectedObj = null;
 
-    // VR controllers
+    // VR controllers and hands
     this._controllers  = [];
+    this._hands        = [];
+    this._handRayMap   = new Map();
 
     this._setupDesktop();
     this._setupVR();
@@ -134,35 +142,105 @@ export class InputManager {
     const parentContainer = this.cameraRig || this.scene;
 
     for (let i = 0; i < 2; i++) {
+      // 1. Controller TargetRaySpace (pointing ray)
       const ctrl = renderer.xr.getController(i);
-      const onCtrlSelect = () => {
+
+      const handleSelect = () => {
+        if (this.cameraRig) this.cameraRig.updateMatrixWorld(true);
+        ctrl.updateMatrixWorld(true);
+
         const hit = this._castFromController(ctrl);
-        if (hit) this._fireSelect(hit);
+        const now = performance.now();
+        let target = hit;
+
+        // Check target retention buffer if instant ray missed due to pinch movement
+        if (!target) {
+          const buffered = this._lastHandTargetMap.get(ctrl);
+          if (buffered && (now - buffered.time < TARGET_RETENTION_MS)) {
+            target = buffered.hit;
+          }
+        }
+
+        if (target) {
+          this._fireSelect(target);
+        }
       };
-      ctrl.addEventListener('selectstart', onCtrlSelect);
-      ctrl.addEventListener('select', onCtrlSelect);
+
+      ctrl.addEventListener('selectstart', handleSelect);
+      ctrl.addEventListener('select', handleSelect);
       parentContainer.add(ctrl);
 
-      // Visual ray line with preallocated position buffer
+      // Visual ray line for controller
       const positions = new Float32Array([0, 0, 0, 0, 0, -5]);
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      const mat = new THREE.LineBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.6 });
+      const mat = new THREE.LineBasicMaterial({
+        color: 0x06d6a0,
+        transparent: true,
+        opacity: 0.6,
+      });
       const line = new THREE.Line(geo, mat);
       ctrl.add(line);
       ctrl.userData.ray = line;
 
       this._controllers.push(ctrl);
+
+      // 2. Hand Space (enables Three.js hand joints & pinch events)
+      const hand = renderer.xr.getHand(i);
+      hand.addEventListener('pinchstart', () => {
+        if (this.cameraRig) this.cameraRig.updateMatrixWorld(true);
+        ctrl.updateMatrixWorld(true);
+
+        const hit = this._castFromController(ctrl);
+        const now = performance.now();
+        let target = hit;
+
+        if (!target) {
+          const buffered = this._lastHandTargetMap.get(ctrl) || this._lastHandTargetMap.get(hand);
+          if (buffered && (now - buffered.time < TARGET_RETENTION_MS)) {
+            target = buffered.hit;
+          }
+        }
+
+        if (target) {
+          this._fireSelect(target);
+        }
+      });
+
+      parentContainer.add(hand);
+      this._hands.push(hand);
     }
   }
 
   _castFromController(ctrl) {
+    if (this.cameraRig) this.cameraRig.updateMatrixWorld(true);
+    ctrl.updateMatrixWorld(true);
+
     _vOrigin.setFromMatrixPosition(ctrl.matrixWorld);
     _vDirection.set(0, 0, -1).transformDirection(ctrl.matrixWorld).normalize();
 
     this._raycaster.set(_vOrigin, _vDirection);
     const hits = this._raycaster.intersectObjects(this._getActiveInteractables(), true);
-    return hits.length > 0 ? this._findInteractable(hits[0].object) : null;
+    let hit = hits.length > 0 ? this._findInteractable(hits[0].object) : null;
+
+    if (hit) {
+      this._lastHandTargetMap.set(ctrl, { hit, time: performance.now() });
+    }
+
+    // Update visual ray
+    if (ctrl.userData.ray) {
+      const rayLine = ctrl.userData.ray;
+      const rayLength = (hits.length > 0) ? hits[0].distance : 5.0;
+      const posAttr = rayLine.geometry.attributes.position;
+      posAttr.setXYZ(0, 0, 0, 0);
+      posAttr.setXYZ(1, 0, 0, -rayLength);
+      posAttr.needsUpdate = true;
+      rayLine.material.color.setHex(hit ? 0xffd166 : 0x06d6a0);
+      rayLine.material.opacity = hit ? 1.0 : 0.6;
+      rayLine.visible = true;
+    }
+
+    return hit;
   }
 
   // ── WebXR Hand Tracking & Gesture Recognition ───────────────────────────
@@ -181,7 +259,11 @@ export class InputManager {
       return null;
     }
 
-    let handHit = null;
+    if (this.cameraRig) {
+      this.cameraRig.updateMatrixWorld(true);
+    }
+
+    let primaryHandHit = null;
     const activeSources = new Set();
     const now = performance.now();
 
@@ -190,6 +272,7 @@ export class InputManager {
         activeSources.add(source);
 
         const indexTip = source.hand.get('index-finger-tip');
+        const middleTip = source.hand.get('middle-finger-tip');
         const thumbTip = source.hand.get('thumb-tip');
         const wrist = source.hand.get('wrist');
         const indexProximal = source.hand.get('index-finger-phalanx-proximal') ||
@@ -202,10 +285,22 @@ export class InputManager {
           if (indexPose && thumbPose) {
             const p1 = indexPose.transform.position;
             const p2 = thumbPose.transform.position;
-            const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y, p1.z - p2.z);
+            const distIndex = Math.hypot(p1.x - p2.x, p1.y - p2.y, p1.z - p2.z);
 
-            const isPinching = dist < 0.035; // 3.5 cm pinch threshold
+            // Optional middle finger pinch check for ergonomics
+            let distMiddle = 1.0;
+            if (middleTip) {
+              const middlePose = frame.getJointPose?.(middleTip, referenceSpace);
+              if (middlePose) {
+                const pm = middlePose.transform.position;
+                distMiddle = Math.hypot(pm.x - p2.x, pm.y - p2.y, pm.z - p2.z);
+              }
+            }
+
             const wasPinching = this._pinchingHands.has(source);
+            const isPinching = wasPinching
+              ? (distIndex < PINCH_THRESHOLD_RELEASE || distMiddle < PINCH_THRESHOLD_RELEASE)
+              : (distIndex < PINCH_THRESHOLD_START || distMiddle < PINCH_THRESHOLD_START);
 
             // Compute stabilized ray origin and direction in WebXR reference space
             _vLocalRayOrigin.set(p1.x, p1.y, p1.z);
@@ -260,7 +355,7 @@ export class InputManager {
             this._raycaster.set(_vWorldRayOrigin, _vWorldRayDir);
             const hits = this._raycaster.intersectObjects(this._getActiveInteractables(), true);
             let currentHit = null;
-            let rayLength = 3.0;
+            let rayLength = 5.0;
 
             if (hits.length > 0) {
               currentHit = this._findInteractable(hits[0].object);
@@ -268,8 +363,8 @@ export class InputManager {
             }
 
             if (currentHit) {
-              handHit = currentHit;
-              this._lastHandTarget = { hit: currentHit, time: now };
+              if (!primaryHandHit) primaryHandHit = currentHit;
+              this._lastHandTargetMap.set(source, { hit: currentHit, time: now });
             }
 
             // Visual ray line in scene space
@@ -279,18 +374,23 @@ export class InputManager {
             posAttr.setXYZ(0, _vWorldRayOrigin.x, _vWorldRayOrigin.y, _vWorldRayOrigin.z);
             posAttr.setXYZ(1, _vEndPos.x, _vEndPos.y, _vEndPos.z);
             posAttr.needsUpdate = true;
-            line.material.color.setHex(isPinching ? 0xffd166 : 0x06d6a0);
-            line.material.opacity = isPinching ? 1.0 : 0.6;
+            line.material.color.setHex(isPinching ? 0xffd166 : (currentHit ? 0xffd166 : 0x06d6a0));
+            line.material.opacity = isPinching ? 1.0 : (currentHit ? 0.9 : 0.5);
             line.visible = true;
 
-            // Handle Pinch Trigger with Target Retention Buffer
+            // Handle Pinch Trigger with Per-Hand Target Retention Buffer
             if (isPinching && !wasPinching) {
               this._pinchingHands.add(source);
               let targetToSelect = currentHit;
-              // Target retention: if ray slipped within last 200ms during pinch gesture, select buffered target
-              if (!targetToSelect && this._lastHandTarget && (now - this._lastHandTarget.time < 200)) {
-                targetToSelect = this._lastHandTarget.hit;
+
+              // If ray slipped off target during the pinch movement, select buffered target
+              if (!targetToSelect) {
+                const buffered = this._lastHandTargetMap.get(source);
+                if (buffered && (now - buffered.time < TARGET_RETENTION_MS)) {
+                  targetToSelect = buffered.hit;
+                }
               }
+
               if (targetToSelect) {
                 this._fireSelect(targetToSelect);
               }
@@ -311,7 +411,7 @@ export class InputManager {
       }
     }
 
-    return handHit;
+    return primaryHandHit;
   }
 
   _getOrCreateHandRay(source) {
@@ -348,20 +448,25 @@ export class InputManager {
     const now = performance.now();
     const activeCamera = this._getActiveCamera();
 
+    // Ensure cameraRig world transform is synchronized
+    if (this.cameraRig) {
+      this.cameraRig.updateMatrixWorld(true);
+    }
+
     // Update Gaze Reticle tracking
     if (this.reticle) {
       this.reticle.update(activeCamera);
     }
 
-    // 1. Check Controllers & Hand Pinch
+    // 1. Check VR Hands & Controllers
     if (this.renderer.xr.isPresenting) {
-      for (const ctrl of this._controllers) {
-        hit = this._castFromController(ctrl);
-        if (hit) break;
-      }
-
       const handHit = this._updateHandGestures();
-      if (!hit && handHit) hit = handHit;
+      if (handHit) hit = handHit;
+
+      for (const ctrl of this._controllers) {
+        const ctrlHit = this._castFromController(ctrl);
+        if (!hit && ctrlHit) hit = ctrlHit;
+      }
     }
 
     // 2. Gaze Dwell (Head Tracking)
@@ -426,6 +531,14 @@ export class InputManager {
   }
 
   _fireSelect(obj) {
+    const now = performance.now();
+    // Debounce duplicate events on the same object within 250ms
+    if (this._lastSelectedObj === obj && (now - this._lastSelectTime < SELECT_DEBOUNCE_MS)) {
+      return;
+    }
+    this._lastSelectedObj = obj;
+    this._lastSelectTime = now;
+
     if (obj.userData.cellIndex === undefined) {
       audioManager.play('click');
     }

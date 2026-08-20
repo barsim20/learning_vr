@@ -52,6 +52,7 @@ const cameraRig = new THREE.Group();
 cameraRig.position.set(0, 0, -2.0); // Store Manager position behind counter
 cameraRig.rotation.set(0, 0, 0); // Keep identity rotation so WebXR head tracking is 1:1 and natural
 scene.add(cameraRig);
+cameraRig.updateMatrixWorld(true);
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 50);
 camera.position.set(0, 1.6, -2.0);  // Store Manager stands behind counter on desktop
@@ -133,6 +134,10 @@ renderer.setAnimationLoop((timestamp, frame) => {
   const activeCamera = renderer.xr.isPresenting
     ? renderer.xr.getCamera()
     : camera;
+
+  if (cameraRig) {
+    cameraRig.updateMatrixWorld(true);
+  }
 
   vrSession.update();
   input.update();

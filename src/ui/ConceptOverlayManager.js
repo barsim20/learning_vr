@@ -110,7 +110,12 @@ export class ConceptOverlayManager {
     // Generous transparent raycastable hit volume box for effortless gaze/pinch selection
     const btnHitBox = new THREE.Mesh(
       new THREE.BoxGeometry(1.2, 0.45, 0.3),
-      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
+      new THREE.MeshBasicMaterial({
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      })
     );
     btnHitBox.position.set(0, -0.32, 0.04);
     this.overlayGroup.add(btnHitBox);
