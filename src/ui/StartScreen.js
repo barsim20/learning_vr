@@ -9,6 +9,8 @@ import { gameState, STATE } from '../core/GameState.js';
 import { audioManager } from '../core/AudioManager.js';
 import { voiceManager } from '../core/VoiceManager.js';
 
+const _startCamPos = new THREE.Vector3();
+
 export class StartScreen {
   /**
    * @param {THREE.Scene} scene
@@ -30,6 +32,8 @@ export class StartScreen {
     this._canvas.height = 320;
     this._ctx     = this._canvas.getContext('2d');
     this._texture = new THREE.CanvasTexture(this._canvas);
+    this._texture.generateMipmaps = false;
+    this._texture.minFilter = THREE.LinearFilter;
 
     this._buildPanel();
     this._buildButton();
@@ -84,6 +88,8 @@ export class StartScreen {
     btnCtx.fillText('▶ START SHIFT', 192, 48);
 
     const btnTex = new THREE.CanvasTexture(btnCanvas);
+    btnTex.generateMipmaps = false;
+    btnTex.minFilter = THREE.LinearFilter;
     const btnLabel = new THREE.Mesh(
       new THREE.PlaneGeometry(0.76, 0.2),
       new THREE.MeshBasicMaterial({ map: btnTex, transparent: true }),
@@ -173,9 +179,9 @@ export class StartScreen {
   }
 
   update(camera) {
-    if (!this.group.visible) return;
-    // Always face camera gently
-    this.group.lookAt(camera.position);
+    if (!this.group.visible || !camera) return;
+    camera.getWorldPosition(_startCamPos);
+    this.group.lookAt(_startCamPos);
   }
 
   _roundRect(ctx, x, y, w, h, r) {

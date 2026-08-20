@@ -91,11 +91,18 @@ export class Restaurant {
     const ambient = new THREE.AmbientLight(0xfff4e0, 0.6);
     g.add(ambient);
 
-    // Main overhead directional
-    const sun = new THREE.DirectionalLight(0xffe49a, 1.2);
+    // Main overhead directional with tightly bounded shadow camera for mobile VR performance
+    const sun = new THREE.DirectionalLight(0xffe49a, 1.1);
     sun.position.set(0, 4, 2);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.camera.near = 0.5;
+    sun.shadow.camera.far = 16;
+    sun.shadow.camera.left = -8;
+    sun.shadow.camera.right = 8;
+    sun.shadow.camera.top = 8;
+    sun.shadow.camera.bottom = -8;
+    sun.shadow.bias = -0.001;
     g.add(sun);
 
     // Warm point lights above each aisle
@@ -106,7 +113,7 @@ export class Restaurant {
       [0,    3.5, -1],  // above counter area
     ];
     for (const pos of pointPositions) {
-      const pt = new THREE.PointLight(PALETTE.light, 1.5, 8);
+      const pt = new THREE.PointLight(PALETTE.light, 1.2, 7, 1.5);
       pt.position.set(...pos);
       g.add(pt);
 

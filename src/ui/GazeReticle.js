@@ -6,6 +6,10 @@
 
 import * as THREE from 'three';
 
+const _reticlePos = new THREE.Vector3();
+const _reticleQuat = new THREE.Quaternion();
+const _reticleOffset = new THREE.Vector3();
+
 export class GazeReticle {
   /**
    * @param {THREE.Camera} camera
@@ -22,6 +26,8 @@ export class GazeReticle {
     this._canvas.height = 128;
     this._ctx    = this._canvas.getContext('2d');
     this._texture = new THREE.CanvasTexture(this._canvas);
+    this._texture.generateMipmaps = false;
+    this._texture.minFilter = THREE.LinearFilter;
 
     this._sprite = new THREE.Sprite(
       new THREE.SpriteMaterial({
@@ -43,6 +49,7 @@ export class GazeReticle {
     }
 
     this._progress = 0; // 0.0 to 1.0
+    this._quantizedProgress = 0;
     this._isHovering = false;
 
     this.draw(0, false);
@@ -51,10 +58,11 @@ export class GazeReticle {
   /** Update reticle position in front of active camera in VR or desktop */
   update(camera) {
     if (!camera) return;
-    const offset = new THREE.Vector3(0, 0, -1.0);
-    offset.applyQuaternion(camera.quaternion);
-    this.group.position.copy(camera.position).add(offset);
-    this.group.quaternion.copy(camera.quaternion);
+    camera.getWorldPosition(_reticlePos);
+    camera.getWorldQuaternion(_reticleQuat);
+    _reticleOffset.set(0, 0, -1.0).applyQuaternion(_reticleQuat);
+    this.group.position.copy(_reticlePos).add(_reticleOffset);
+    this.group.quaternion.copy(_reticleQuat);
   }
 
   /**
@@ -63,10 +71,13 @@ export class GazeReticle {
    * @param {boolean} isHovering
    */
   setProgress(progress, isHovering) {
-    if (this._progress !== progress || this._isHovering !== isHovering) {
-      this._progress   = progress;
-      this._isHovering = isHovering;
-      this.draw(progress, isHovering);
+    // Quantize progress to ~50 steps (0.02) to avoid GPU texture stalling every frame
+    const quantized = Math.round(progress * 50) / 50;
+    if (this._quantizedProgress !== quantized || this._isHovering !== isHovering) {
+      this._progress          = progress;
+      this._quantizedProgress = quantized;
+      this._isHovering        = isHovering;
+      this.draw(quantized, isHovering);
     }
   }
 

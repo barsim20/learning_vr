@@ -25,12 +25,13 @@ import { conceptOverlayManager } from './ui/ConceptOverlayManager.js';
 // ── Renderer ────────────────────────────────────────────────────────────────
 
 const canvas   = document.getElementById('app');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type    = THREE.PCFShadowMap;
 renderer.xr.enabled        = true;
+renderer.xr.setReferenceSpaceType('local-floor');
 renderer.outputColorSpace   = THREE.SRGBColorSpace;
 renderer.toneMapping        = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.1;
@@ -49,11 +50,11 @@ scene.fog = new THREE.Fog(0x1a0a00, 12, 22);
 
 const cameraRig = new THREE.Group();
 cameraRig.position.set(0, 0, -2.0); // Store Manager position behind counter
-cameraRig.rotation.set(0, Math.PI, 0); // WebXR default forward (-Z) faces (+Z) toward counter and customer
+cameraRig.rotation.set(0, 0, 0); // Keep identity rotation so WebXR head tracking is 1:1 and natural
 scene.add(cameraRig);
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 50);
-camera.position.set(0, 1.6, -2.0);  // Store Manager stands behind counter (shelves side) on desktop
+camera.position.set(0, 1.6, -2.0);  // Store Manager stands behind counter on desktop
 camera.lookAt(0, 1.4, 0.5);        // Looking forward toward counter and customer
 cameraRig.add(camera);
 

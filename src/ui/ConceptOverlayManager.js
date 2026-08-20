@@ -12,6 +12,10 @@ import { CONCEPT_EXPLANATIONS } from '../content/conceptExplanations.js';
 import { gameState } from '../core/GameState.js';
 import { audioManager } from '../core/AudioManager.js';
 
+const _overlayPos = new THREE.Vector3();
+const _overlayQuat = new THREE.Quaternion();
+const _overlayOffset = new THREE.Vector3();
+
 export class ConceptOverlayManager {
   /**
    * @param {THREE.Scene} [scene]
@@ -68,6 +72,7 @@ export class ConceptOverlayManager {
     this.cardCtx = this.cardCanvas.getContext('2d');
 
     this.cardTexture = new THREE.CanvasTexture(this.cardCanvas);
+    this.cardTexture.generateMipmaps = false;
     this.cardTexture.minFilter = THREE.LinearFilter;
     const cardGeo = new THREE.PlaneGeometry(1.3, 0.83);
     const cardMat = new THREE.MeshBasicMaterial({
@@ -88,6 +93,8 @@ export class ConceptOverlayManager {
     this.btnCtx = this.btnCanvas.getContext('2d');
 
     this.btnTexture = new THREE.CanvasTexture(this.btnCanvas);
+    this.btnTexture.generateMipmaps = false;
+    this.btnTexture.minFilter = THREE.LinearFilter;
     const btnGeo = new THREE.PlaneGeometry(0.72, 0.18);
     this.btnMat = new THREE.MeshBasicMaterial({
       map: this.btnTexture,
@@ -270,10 +277,11 @@ export class ConceptOverlayManager {
 
     // Position overlay in front of camera immediately (0.95m distance is ideal in VR)
     if (this.camera) {
-      const offset = new THREE.Vector3(0, 0, -0.95);
-      offset.applyQuaternion(this.camera.quaternion);
-      this.overlayGroup.position.copy(this.camera.position).add(offset);
-      this.overlayGroup.quaternion.copy(this.camera.quaternion);
+      this.camera.getWorldPosition(_overlayPos);
+      this.camera.getWorldQuaternion(_overlayQuat);
+      _overlayOffset.set(0, 0, -0.95).applyQuaternion(_overlayQuat);
+      this.overlayGroup.position.copy(_overlayPos).add(_overlayOffset);
+      this.overlayGroup.quaternion.copy(_overlayQuat);
     }
 
     this.overlayGroup.visible = true;
@@ -361,6 +369,8 @@ export class ConceptOverlayManager {
     ctx.fillText('🧠 CONCEPT', 100, 50);
 
     const texture = new THREE.CanvasTexture(canvas);
+    texture.generateMipmaps = false;
+    texture.minFilter = THREE.LinearFilter;
     const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
     const sprite = new THREE.Sprite(spriteMat);
     sprite.scale.set(0.4, 0.2, 1);
@@ -385,18 +395,21 @@ export class ConceptOverlayManager {
   // ── Main Update Loop ──────────────────────────────────────────────────────
 
   update(camera) {
+    if (!camera) return;
+    camera.getWorldPosition(_overlayPos);
+    camera.getWorldQuaternion(_overlayQuat);
+
     // Keep overlay positioned and aligned 0.95m in front of camera
     if (this.overlayGroup.visible) {
-      const offset = new THREE.Vector3(0, 0, -0.95);
-      offset.applyQuaternion(camera.quaternion);
-      this.overlayGroup.position.copy(camera.position).add(offset);
-      this.overlayGroup.quaternion.copy(camera.quaternion);
+      _overlayOffset.set(0, 0, -0.95).applyQuaternion(_overlayQuat);
+      this.overlayGroup.position.copy(_overlayPos).add(_overlayOffset);
+      this.overlayGroup.quaternion.copy(_overlayQuat);
     }
 
     // Billboard persistent badges to face camera
     for (const badge of this._badges.values()) {
       if (badge.visible) {
-        badge.lookAt(camera.position);
+        badge.lookAt(_overlayPos);
       }
     }
   }

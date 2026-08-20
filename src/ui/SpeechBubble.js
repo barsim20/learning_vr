@@ -7,6 +7,8 @@
 import * as THREE from 'three';
 import { createTextLabel } from '../utils/TextLabel.js';
 
+const _bubbleCamPos = new THREE.Vector3();
+
 export class SpeechBubble {
   /**
    * @param {THREE.Object3D} parent  object to attach above
@@ -51,7 +53,8 @@ export class SpeechBubble {
 
   /** Face the camera each frame */
   update(camera) {
-    if (!this.group.visible) return;
-    this.group.lookAt(camera.position);
+    if (!this.group.visible || !camera) return;
+    camera.getWorldPosition(_bubbleCamPos);
+    this.group.lookAt(_bubbleCamPos);
   }
 }

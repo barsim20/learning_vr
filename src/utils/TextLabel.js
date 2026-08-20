@@ -80,6 +80,8 @@ export function createTextLabel(text, opts = {}) {
   });
 
   const texture = new THREE.CanvasTexture(canvas);
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.LinearFilter;
   texture.needsUpdate = true;
 
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });

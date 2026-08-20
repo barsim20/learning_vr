@@ -8,6 +8,10 @@ import * as THREE from 'three';
 import { gameState, STATE } from '../core/GameState.js';
 import { conceptOverlayManager } from './ConceptOverlayManager.js';
 
+const _hudCamPos = new THREE.Vector3();
+const _hudCamQuat = new THREE.Quaternion();
+const _hudOffset = new THREE.Vector3();
+
 export class ObjectiveHUD {
   /**
    * @param {THREE.Scene} scene
@@ -25,6 +29,8 @@ export class ObjectiveHUD {
     this._canvas.height = 100;
     this._ctx     = this._canvas.getContext('2d');
     this._texture = new THREE.CanvasTexture(this._canvas);
+    this._texture.generateMipmaps = false;
+    this._texture.minFilter = THREE.LinearFilter;
 
     this._sprite = new THREE.Sprite(
       new THREE.SpriteMaterial({
@@ -126,17 +132,19 @@ export class ObjectiveHUD {
 
   /** Position HUD smoothly at top-center of camera FOV */
   update(camera) {
+    if (!camera) return;
     if (conceptOverlayManager.overlayGroup && conceptOverlayManager.overlayGroup.visible) {
       this.group.visible = false;
       return;
     }
     this.group.visible = true;
 
-    // Vector offset in front of camera: 0.55m up/forward relative to eye height
-    const offset = new THREE.Vector3(0, 0.55, -1.2);
-    offset.applyQuaternion(camera.quaternion);
-    this.group.position.copy(camera.position).add(offset);
-    this.group.quaternion.copy(camera.quaternion);
+    // Vector offset in front of camera: 0.45m up, 1.1m forward
+    camera.getWorldPosition(_hudCamPos);
+    camera.getWorldQuaternion(_hudCamQuat);
+    _hudOffset.set(0, 0.45, -1.1).applyQuaternion(_hudCamQuat);
+    this.group.position.copy(_hudCamPos).add(_hudOffset);
+    this.group.quaternion.copy(_hudCamQuat);
   }
 
   _roundRect(ctx, x, y, w, h, r) {

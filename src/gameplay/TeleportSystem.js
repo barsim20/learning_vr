@@ -12,11 +12,11 @@ import { audioManager } from '../core/AudioManager.js';
 import { conceptOverlayManager } from '../ui/ConceptOverlayManager.js';
 
 const TELEPORT_NODES = [
-  { id: 'counter',  label: '📍 COUNTER',   target: new THREE.Vector3(0, 1.6, -2.0),    vrRigPos: new THREE.Vector3(0, 0, -2.0),    vrRotY: Math.PI, floorPos: new THREE.Vector3(0, 0.02, -2.0),    color: 0xe63946 },
-  { id: 'math',     label: '🟡 MATH AISLE', target: new THREE.Vector3(-5, 1.6, -5.5),  vrRigPos: new THREE.Vector3(-5, 0, -5.5),  vrRotY: 0,       floorPos: new THREE.Vector3(-5, 0.02, -5.5),  color: 0xffd166 },
-  { id: 'food',     label: '🟢 FOOD AISLE', target: new THREE.Vector3(0, 1.6, -5.5),   vrRigPos: new THREE.Vector3(0, 0, -5.5),   vrRotY: 0,       floorPos: new THREE.Vector3(0, 0.02, -5.5),   color: 0x06d6a0 },
-  { id: 'sports',   label: '🔵 SPORTS AISLE',target: new THREE.Vector3(5, 1.6, -5.5),  vrRigPos: new THREE.Vector3(5, 0, -5.5),  vrRotY: 0,       floorPos: new THREE.Vector3(5, 0.02, -5.5),   color: 0x118ab2 },
-  { id: 'deliver',  label: '📬 DELIVERY',   target: new THREE.Vector3(2.2, 1.6, -1.5), vrRigPos: new THREE.Vector3(2.2, 0, -1.5), vrRotY: Math.PI, floorPos: new THREE.Vector3(2.2, 0.02, -1.5), color: 0xffd166 },
+  { id: 'counter',  label: '📍 COUNTER',   target: new THREE.Vector3(0, 1.6, -2.0),    vrRigPos: new THREE.Vector3(0, 0, -2.0),    floorPos: new THREE.Vector3(0, 0.02, -2.0),    color: 0xe63946, lookTarget: new THREE.Vector3(0, 1.4, 0.5) },
+  { id: 'math',     label: '🟡 MATH AISLE', target: new THREE.Vector3(-5, 1.6, -5.5),  vrRigPos: new THREE.Vector3(-5, 0, -5.5),  floorPos: new THREE.Vector3(-5, 0.02, -5.5),  color: 0xffd166, lookTarget: new THREE.Vector3(-5, 1.6, -7.0) },
+  { id: 'food',     label: '🟢 FOOD AISLE', target: new THREE.Vector3(0, 1.6, -5.5),   vrRigPos: new THREE.Vector3(0, 0, -5.5),   floorPos: new THREE.Vector3(0, 0.02, -5.5),   color: 0x06d6a0, lookTarget: new THREE.Vector3(0, 1.6, -7.0) },
+  { id: 'sports',   label: '🔵 SPORTS AISLE',target: new THREE.Vector3(5, 1.6, -5.5),  vrRigPos: new THREE.Vector3(5, 0, -5.5),  floorPos: new THREE.Vector3(5, 0.02, -5.5),   color: 0x118ab2, lookTarget: new THREE.Vector3(5, 1.6, -7.0) },
+  { id: 'deliver',  label: '📬 DELIVERY',   target: new THREE.Vector3(2.2, 1.6, -1.5), vrRigPos: new THREE.Vector3(2.2, 0, -1.5), floorPos: new THREE.Vector3(2.2, 0.02, -1.5), color: 0xffd166, lookTarget: new THREE.Vector3(2.2, 1.2, -0.5) },
 ];
 
 export class TeleportSystem {
@@ -118,7 +118,7 @@ export class TeleportSystem {
     }
   }
 
-  /** Teleport player smoothly to target node position & orientation */
+  /** Teleport player smoothly to target node position */
   teleportToNode(data) {
     if (this._isTeleporting) return;
     this._isTeleporting = true;
@@ -131,18 +131,15 @@ export class TeleportSystem {
     const isVR = this.vrSession && this.vrSession.presenting;
 
     if (isVR && this.cameraRig) {
-      // In WebXR: lerp cameraRig position and rotation
+      // In WebXR: smoothly lerp cameraRig position (keep rotation strictly at (0,0,0) for natural 1:1 physical tracking)
       const startRigPos = this.cameraRig.position.clone();
       const targetRigPos = data.vrRigPos;
-      const startRotY = this.cameraRig.rotation.y;
-      const targetRotY = data.vrRotY !== undefined ? data.vrRotY : startRotY;
 
       const tickVR = () => {
         const t = Math.min((performance.now() - start) / duration, 1);
         const easeT = t * (2 - t); // ease-out quad
 
         this.cameraRig.position.lerpVectors(startRigPos, targetRigPos, easeT);
-        this.cameraRig.rotation.y = startRotY + (targetRotY - startRotY) * easeT;
 
         if (t < 1) {
           requestAnimationFrame(tickVR);
@@ -163,7 +160,7 @@ export class TeleportSystem {
         this.camera.position.lerpVectors(startPos, targetPos, easeT);
 
         if (this.vrSession && this.vrSession._orbitControls) {
-          const lookTarget = new THREE.Vector3(targetPos.x, targetPos.y - 0.2, targetPos.z + (data.vrRotY === Math.PI ? 2.0 : -2.0));
+          const lookTarget = data.lookTarget || new THREE.Vector3(targetPos.x, targetPos.y - 0.2, targetPos.z - 2.0);
           this.vrSession._orbitControls.target.copy(lookTarget);
           this.vrSession._orbitControls.update();
         }
@@ -183,7 +180,7 @@ export class TeleportSystem {
     const node = TELEPORT_NODES.find(n => n.target.distanceTo(targetPos) < 1.0) || {
       target: targetPos,
       vrRigPos: new THREE.Vector3(targetPos.x, 0, targetPos.z),
-      vrRotY: 0,
+      lookTarget: new THREE.Vector3(targetPos.x, 1.4, targetPos.z - 2.0),
     };
     this.teleportToNode(node);
   }

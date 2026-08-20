@@ -10,6 +10,10 @@ import { CATEGORY_COLORS } from '../content/knowledgeDatabase.js';
 import { gameState } from '../core/GameState.js';
 import { audioManager } from '../core/AudioManager.js';
 
+const _itemCamPos = new THREE.Vector3();
+const _itemCamQuat = new THREE.Quaternion();
+const _itemOffset = new THREE.Vector3();
+
 export class KnowledgeItem {
   /**
    * @param {object} data          — from knowledgeDatabase.js
@@ -102,14 +106,15 @@ export class KnowledgeItem {
    * @param {number} dt  delta time in seconds
    */
   updateCarried(camera, dt) {
-    if (!this.carried) return;
+    if (!this.carried || !camera) return;
     this._bobTime += dt * 2.5;
 
-    // Offset in front of the camera
-    const offset = new THREE.Vector3(0.3, -0.3, -0.6);
-    offset.applyQuaternion(camera.quaternion);
+    // Offset in front of the camera using true world camera pose
+    camera.getWorldPosition(_itemCamPos);
+    camera.getWorldQuaternion(_itemCamQuat);
+    _itemOffset.set(0.3, -0.3, -0.6).applyQuaternion(_itemCamQuat);
 
-    this.mesh.position.copy(camera.position).add(offset);
+    this.mesh.position.copy(_itemCamPos).add(_itemOffset);
     this.mesh.position.y += Math.sin(this._bobTime) * 0.015;
     this.mesh.rotation.y += dt * 0.8; // slow spin
   }

@@ -21,6 +21,8 @@ export class Scoreboard {
     this._canvas.height = 160;
     this._ctx     = this._canvas.getContext('2d');
     this._texture = new THREE.CanvasTexture(this._canvas);
+    this._texture.generateMipmaps = false;
+    this._texture.minFilter = THREE.LinearFilter;
 
     const mesh = new THREE.Mesh(
       new THREE.PlaneGeometry(0.8, 0.5),

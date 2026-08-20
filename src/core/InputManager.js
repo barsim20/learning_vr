@@ -15,6 +15,16 @@ import { audioManager } from './AudioManager.js';
 
 const DWELL_TIME_MS = 1000; // 1 second continuous gaze triggers selection
 
+// Reusable scratch objects to eliminate per-frame GC allocations
+const _vOrigin = new THREE.Vector3();
+const _vDirection = new THREE.Vector3();
+const _vLocalRayOrigin = new THREE.Vector3();
+const _vLocalRayDir = new THREE.Vector3();
+const _vWorldRayOrigin = new THREE.Vector3();
+const _vWorldRayDir = new THREE.Vector3();
+const _vEndPos = new THREE.Vector3();
+const _qTemp = new THREE.Quaternion();
+
 export class InputManager {
   /**
    * @param {THREE.WebGLRenderer} renderer
@@ -109,12 +119,10 @@ export class InputManager {
 
   _castFromCamera() {
     const cam = this._getActiveCamera();
-    const origin = new THREE.Vector3();
-    const direction = new THREE.Vector3();
-    cam.getWorldPosition(origin);
-    cam.getWorldDirection(direction);
+    cam.getWorldPosition(_vOrigin);
+    cam.getWorldDirection(_vDirection);
 
-    this._raycaster.set(origin, direction);
+    this._raycaster.set(_vOrigin, _vDirection);
     const hits = this._raycaster.intersectObjects(this._getActiveInteractables(), true);
     return hits.length > 0 ? this._findInteractable(hits[0].object) : null;
   }
@@ -135,11 +143,10 @@ export class InputManager {
       ctrl.addEventListener('select', onCtrlSelect);
       parentContainer.add(ctrl);
 
-      // Visual ray line
-      const geo = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(0, 0, 0),
-        new THREE.Vector3(0, 0, -5),
-      ]);
+      // Visual ray line with preallocated position buffer
+      const positions = new Float32Array([0, 0, 0, 0, 0, -5]);
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
       const mat = new THREE.LineBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.6 });
       const line = new THREE.Line(geo, mat);
       ctrl.add(line);
@@ -150,12 +157,10 @@ export class InputManager {
   }
 
   _castFromController(ctrl) {
-    const origin    = new THREE.Vector3();
-    const direction = new THREE.Vector3(0, 0, -1);
-    origin.setFromMatrixPosition(ctrl.matrixWorld);
-    direction.transformDirection(ctrl.matrixWorld).normalize();
+    _vOrigin.setFromMatrixPosition(ctrl.matrixWorld);
+    _vDirection.set(0, 0, -1).transformDirection(ctrl.matrixWorld).normalize();
 
-    this._raycaster.set(origin, direction);
+    this._raycaster.set(_vOrigin, _vDirection);
     const hits = this._raycaster.intersectObjects(this._getActiveInteractables(), true);
     return hits.length > 0 ? this._findInteractable(hits[0].object) : null;
   }
@@ -203,21 +208,20 @@ export class InputManager {
             const wasPinching = this._pinchingHands.has(source);
 
             // Compute stabilized ray origin and direction in WebXR reference space
-            let localRayOrigin = new THREE.Vector3(p1.x, p1.y, p1.z);
-            let localRayDir = new THREE.Vector3();
+            _vLocalRayOrigin.set(p1.x, p1.y, p1.z);
             let haveValidRay = false;
 
             // Preferred: WebXR runtime targetRaySpace (calibrated, stabilized pinch-aim ray)
             const targetRayPose = source.targetRaySpace ? frame.getPose?.(source.targetRaySpace, referenceSpace) : null;
             if (targetRayPose) {
-              localRayOrigin.set(
+              _vLocalRayOrigin.set(
                 targetRayPose.transform.position.x,
                 targetRayPose.transform.position.y,
                 targetRayPose.transform.position.z,
               );
               const q = targetRayPose.transform.orientation;
-              const quat = new THREE.Quaternion(q.x, q.y, q.z, q.w);
-              localRayDir.set(0, 0, -1).applyQuaternion(quat).normalize();
+              _qTemp.set(q.x, q.y, q.z, q.w);
+              _vLocalRayDir.set(0, 0, -1).applyQuaternion(_qTemp).normalize();
               haveValidRay = true;
             }
 
@@ -228,10 +232,10 @@ export class InputManager {
               if (wristPose && indexBasePose) {
                 const pw = wristPose.transform.position;
                 const pb = indexBasePose.transform.position;
-                localRayOrigin.set(pb.x, pb.y, pb.z);
-                localRayDir.set(pb.x - pw.x, pb.y - pw.y, pb.z - pw.z);
-                if (localRayDir.lengthSq() > 0.0001) {
-                  localRayDir.normalize();
+                _vLocalRayOrigin.set(pb.x, pb.y, pb.z);
+                _vLocalRayDir.set(pb.x - pw.x, pb.y - pw.y, pb.z - pw.z);
+                if (_vLocalRayDir.lengthSq() > 0.0001) {
+                  _vLocalRayDir.normalize();
                   haveValidRay = true;
                 }
               }
@@ -239,20 +243,21 @@ export class InputManager {
 
             // Secondary fallback: forward from active camera
             if (!haveValidRay) {
-              this._getActiveCamera().getWorldDirection(localRayDir);
+              this._getActiveCamera().getWorldDirection(_vLocalRayDir);
             }
 
             // Transform origin and direction into Three.js World Space via cameraRig
-            const worldRayOrigin = this.cameraRig
-              ? this.cameraRig.localToWorld(localRayOrigin.clone())
-              : localRayOrigin.clone();
-
-            const worldRayDir = this.cameraRig
-              ? localRayDir.clone().applyQuaternion(this.cameraRig.quaternion).normalize()
-              : localRayDir.clone();
+            if (this.cameraRig) {
+              _vWorldRayOrigin.copy(_vLocalRayOrigin);
+              this.cameraRig.localToWorld(_vWorldRayOrigin);
+              _vWorldRayDir.copy(_vLocalRayDir).applyQuaternion(this.cameraRig.quaternion).normalize();
+            } else {
+              _vWorldRayOrigin.copy(_vLocalRayOrigin);
+              _vWorldRayDir.copy(_vLocalRayDir);
+            }
 
             // Raycast along world ray
-            this._raycaster.set(worldRayOrigin, worldRayDir);
+            this._raycaster.set(_vWorldRayOrigin, _vWorldRayDir);
             const hits = this._raycaster.intersectObjects(this._getActiveInteractables(), true);
             let currentHit = null;
             let rayLength = 3.0;
@@ -269,9 +274,11 @@ export class InputManager {
 
             // Visual ray line in scene space
             const line = this._getOrCreateHandRay(source);
-            const endPos = worldRayOrigin.clone().addScaledVector(worldRayDir, rayLength);
-            line.geometry.setFromPoints([worldRayOrigin, endPos]);
-            line.geometry.attributes.position.needsUpdate = true;
+            _vEndPos.copy(_vWorldRayOrigin).addScaledVector(_vWorldRayDir, rayLength);
+            const posAttr = line.geometry.attributes.position;
+            posAttr.setXYZ(0, _vWorldRayOrigin.x, _vWorldRayOrigin.y, _vWorldRayOrigin.z);
+            posAttr.setXYZ(1, _vEndPos.x, _vEndPos.y, _vEndPos.z);
+            posAttr.needsUpdate = true;
             line.material.color.setHex(isPinching ? 0xffd166 : 0x06d6a0);
             line.material.opacity = isPinching ? 1.0 : 0.6;
             line.visible = true;
@@ -311,10 +318,9 @@ export class InputManager {
     if (!this._handRayMap) this._handRayMap = new Map();
     let line = this._handRayMap.get(source);
     if (!line) {
-      const geo = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(0, 0, 0),
-        new THREE.Vector3(0, 0, -3),
-      ]);
+      const positions = new Float32Array(6);
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
       const mat = new THREE.LineBasicMaterial({
         color: 0x06d6a0,
         transparent: true,
